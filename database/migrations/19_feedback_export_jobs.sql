@@ -1,3 +1,5 @@
+-- Mô tả: Bảng system_export_jobs cho job xuất dữ liệu (feedback, v.v.).
+
 SET client_encoding = 'UTF8';
 
 CREATE TABLE IF NOT EXISTS system_export_jobs (

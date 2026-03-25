@@ -109,6 +109,7 @@ export class InvoicePgRepo implements InvoiceRepoPort {
     status?: string;
     enrollmentId?: string;
     overdue?: boolean;
+    includeTerminatedEnrollments?: boolean;
     limit?: number;
   }): Promise<any[]> {
     const whereConditions: string[] = [];
@@ -123,6 +124,11 @@ export class InvoicePgRepo implements InvoiceRepoPort {
     
     whereConditions.push(`i.created_at <= $${idx++}::date`);
     values.push(params.toDate);
+
+    // R6: Mặc định chỉ xuất invoice của enrollment còn đang học (ACTIVE/PAUSED)
+    if (params.includeTerminatedEnrollments !== true) {
+      whereConditions.push(`e.status IN ('ACTIVE', 'PAUSED')`);
+    }
 
     if (params.status) {
       whereConditions.push(`i.status = $${idx++}`);

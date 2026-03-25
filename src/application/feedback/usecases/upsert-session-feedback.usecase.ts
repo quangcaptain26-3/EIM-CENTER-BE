@@ -1,7 +1,7 @@
 import { AppError } from "../../../shared/errors/app-error";
 import { FeedbackRepoPort } from "../../../domain/feedback/repositories/feedback.repo.port";
-import { teacherCanWriteSession } from "../../../domain/feedback/services/teacher-ownership.rule";
 import { FeedbackPolicy } from "../../../domain/feedback/services/feedback.policy";
+import { canEditFeedbackByDeadline } from "../../../domain/feedback/services/feedback-edit-deadline.rule";
 import { FeedbackValidator } from "../../../domain/feedback/services/feedback.validator";
 import { RosterRepoPort } from "../../../domain/classes/repositories/roster.repo.port";
 import { ISessionRepository } from "../../../domain/sessions/repositories/session.repo.port";
@@ -24,6 +24,12 @@ export class UpsertSessionFeedbackUseCase {
     if (!session) {
       throw AppError.notFound("Không tìm thấy buổi học");
     }
+    if (session.sessionStatus === "CANCELLED") {
+      throw AppError.badRequest("Không thể nhập feedback cho buổi học đã bị hủy", {
+        code: "FEEDBACK/SESSION_CANCELLED",
+        sessionId,
+      });
+    }
 
     const klass = await this.classRepo.findById(session.classId);
     if (!klass) {
@@ -38,6 +44,16 @@ export class UpsertSessionFeedbackUseCase {
     }
 
     FeedbackPolicy.assertCanWriteSession({ ...session, id: sessionId }, actor);
+
+    // R6: Teacher chỉ được sửa trong cửa sổ X ngày sau session; ACADEMIC/ROOT bỏ qua
+    const deadlineCheck = canEditFeedbackByDeadline(session.sessionDate, actor.roles);
+    if (!deadlineCheck.allowed) {
+      throw AppError.badRequest(deadlineCheck.reason ?? "Đã quá hạn chỉnh sửa", {
+        code: "FEEDBACK/EDIT_DEADLINE_PASSED",
+        sessionId,
+        sessionDate: session.sessionDate.toISOString(),
+      });
+    }
 
     // Chống orphan feedback theo thời điểm: chỉ cho phép ghi cho học viên thuộc lớp tại ngày của session.
     const roster = await this.rosterRepo.listRosterAtDate(session.classId, session.sessionDate);
@@ -78,6 +94,9 @@ export class UpsertSessionFeedbackUseCase {
     }));
 
     const upserted = await this.feedbackRepo.upsertMany(itemsToUpsert);
-    return upserted.map(FeedbackMapper.toFeedbackResponse);
+    return {
+      data: upserted.map(FeedbackMapper.toFeedbackResponse),
+      sessionDate: session.sessionDate.toISOString(),
+    };
   }
 }

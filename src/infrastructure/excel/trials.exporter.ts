@@ -58,6 +58,12 @@ export class TrialsExporter {
       });
     });
 
+    sheet.columns?.forEach((col) => {
+      if (col && typeof col.width === "number") {
+        col.width = Math.max(col.width, 15);
+      }
+    });
+
     return workbook;
   }
 

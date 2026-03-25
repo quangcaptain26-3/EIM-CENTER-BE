@@ -63,52 +63,73 @@ export class FeedbackAuditBuilder {
       processedCount: number;
       successCount: number;
       errorCount: number;
+      sessionDate?: string;
+      overrideDeadline?: boolean;
     },
   ): AuditWriteInput {
+    const meta: Record<string, unknown> = {
+      actorRole: input.actorRole,
+      sessionId: input.sessionId,
+      processedCount: input.processedCount,
+      successCount: input.successCount,
+      errorCount: input.errorCount,
+    };
+    if (input.sessionDate) meta.sessionDate = input.sessionDate;
+    if (input.overrideDeadline) meta.overrideDeadline = true;
     return {
       actorUserId: input.actorId,
       action: FeedbackExcelAuditAction.IMPORT,
       entity: FEEDBACK_EXCEL_AUDIT_ENTITY,
       entityId: input.sessionId,
-      meta: {
-        actorRole: input.actorRole,
-        sessionId: input.sessionId,
-        processedCount: input.processedCount,
-        successCount: input.successCount,
-        errorCount: input.errorCount,
-      },
+      meta,
     };
   }
 
   static buildManualFeedbackUpsert(
-    input: FeedbackAuditActor & { sessionId: string; affectedStudentCount: number },
+    input: FeedbackAuditActor & {
+      sessionId: string;
+      affectedStudentCount: number;
+      sessionDate?: string;
+      overrideDeadline?: boolean;
+    },
   ): AuditWriteInput {
+    const meta: Record<string, unknown> = {
+      actorRole: input.actorRole,
+      sessionId: input.sessionId,
+      affectedStudentCount: input.affectedStudentCount,
+    };
+    if (input.sessionDate) meta.sessionDate = input.sessionDate;
+    if (input.overrideDeadline) meta.overrideDeadline = true;
     return {
       actorUserId: input.actorId,
       action: FeedbackExcelAuditAction.FEEDBACK_UPSERT,
       entity: FEEDBACK_AUDIT_ENTITY,
       entityId: input.sessionId,
-      meta: {
-        actorRole: input.actorRole,
-        sessionId: input.sessionId,
-        affectedStudentCount: input.affectedStudentCount,
-      },
+      meta,
     };
   }
 
   static buildManualScoreUpsert(
-    input: FeedbackAuditActor & { sessionId: string; affectedStudentCount: number },
+    input: FeedbackAuditActor & {
+      sessionId: string;
+      affectedStudentCount: number;
+      sessionDate?: string;
+      overrideDeadline?: boolean;
+    },
   ): AuditWriteInput {
+    const meta: Record<string, unknown> = {
+      actorRole: input.actorRole,
+      sessionId: input.sessionId,
+      affectedStudentCount: input.affectedStudentCount,
+    };
+    if (input.sessionDate) meta.sessionDate = input.sessionDate;
+    if (input.overrideDeadline) meta.overrideDeadline = true;
     return {
       actorUserId: input.actorId,
       action: FeedbackExcelAuditAction.SCORE_UPSERT,
       entity: FEEDBACK_AUDIT_ENTITY,
       entityId: input.sessionId,
-      meta: {
-        actorRole: input.actorRole,
-        sessionId: input.sessionId,
-        affectedStudentCount: input.affectedStudentCount,
-      },
+      meta,
     };
   }
 }

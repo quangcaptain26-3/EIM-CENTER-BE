@@ -83,9 +83,13 @@ export class SessionsController {
 
     // Snapshot trước khi update để audit rõ ràng (tránh mất dấu thay đổi cover/reschedule).
     const before = await this.getSessionUseCase.execute(sessionId);
-    const updatedSession = await this.updateSessionUseCase.execute(sessionId, req.body);
+    const updatedSession = await this.updateSessionUseCase.execute(
+      sessionId,
+      req.body,
+      req.user?.userId
+    );
 
-    // Audit theo loại action (reschedule vs cover teacher).
+    // Audit theo loại action (reschedule vs cover teacher vs status).
     // Không log dữ liệu thừa; chỉ log before/after và note nếu có.
     if (req.body?.sessionDate && new Date(req.body.sessionDate).getTime() !== new Date(before.sessionDate).getTime()) {
       await auditWriter.write(req.user?.userId, "SESSION_RESCHEDULE", "session", sessionId, {
@@ -101,6 +105,14 @@ export class SessionsController {
         classId: before.classId,
         fromCoverTeacherId: before.coverTeacherId ?? null,
         toCoverTeacherId: updatedSession.coverTeacherId ?? null,
+      });
+    }
+
+    if (req.body?.sessionStatus !== undefined && before.sessionStatus !== updatedSession.sessionStatus) {
+      await auditWriter.write(req.user?.userId, "SESSION_STATUS_UPDATE", "session", sessionId, {
+        classId: before.classId,
+        fromStatus: before.sessionStatus,
+        toStatus: updatedSession.sessionStatus,
       });
     }
 

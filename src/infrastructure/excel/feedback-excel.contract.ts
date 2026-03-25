@@ -39,6 +39,30 @@ export const FEEDBACK_EXCEL_COLUMNS = [
 
 export type FeedbackExcelColumnKey = (typeof FEEDBACK_EXCEL_COLUMNS)[number];
 
+/**
+ * Header tiếng Việt cho export — importer chấp nhận cả key tiếng Anh và header tiếng Việt.
+ */
+export const FEEDBACK_HEADERS_VI: Record<FeedbackExcelColumnKey, string> = {
+  session_id: 'Mã buổi học',
+  session_date: 'Ngày học',
+  session_type: 'Loại buổi',
+  class_code: 'Mã lớp',
+  student_id: 'Mã học viên',
+  student_name: 'Họ tên',
+  attendance: 'Điểm danh',
+  homework: 'Bài tập',
+  participation: 'Tham gia',
+  behavior: 'Hành vi',
+  language_usage: 'Tiếng Anh',
+  comment: 'Nhận xét',
+  score_listening: 'Nghe',
+  score_reading: 'Đọc',
+  score_writing: 'Viết',
+  score_speaking: 'Nói',
+  score_total: 'Tổng điểm',
+  score_note: 'Ghi chú điểm',
+};
+
 // =========================
 // Column Groups
 // =========================
@@ -310,5 +334,8 @@ export interface ImportFeedbackResult {
    * Detailed row-level errors.
    */
   errors: ImportRowError[];
+
+  /** session_date (ISO) — dùng cho audit trace late-edit */
+  sessionDate?: string;
 }
 

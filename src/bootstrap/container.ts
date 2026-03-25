@@ -13,6 +13,7 @@ import { PostgresTrialRepository } from '../infrastructure/db/repositories/trial
 import { FeePlanPgRepo } from '../infrastructure/db/repositories/finance/fee-plan.pg.repo';
 import { InvoicePgRepo } from '../infrastructure/db/repositories/finance/invoice.pg.repo';
 import { PaymentPgRepo } from '../infrastructure/db/repositories/finance/payment.pg.repo';
+import { StudentPaymentStatusPgRepo } from '../infrastructure/db/repositories/finance/student-payment-status.pg.repo';
 import { AuditPgRepo } from '../infrastructure/db/repositories/system/audit.pg.repo';
 import { NotificationPgRepo } from '../infrastructure/db/repositories/system/notification.pg.repo';
 import { pool } from '../infrastructure/db/pg-pool';
@@ -44,6 +45,7 @@ import { UpdateStudentUseCase } from '../application/students/usecases/update-st
 import { CreateEnrollmentUseCase } from '../application/students/usecases/create-enrollment.usecase';
 import { UpdateEnrollmentStatusUseCase } from '../application/students/usecases/update-enrollment-status.usecase';
 import { TransferEnrollmentUseCase } from '../application/students/usecases/transfer-enrollment.usecase';
+import { EnrollmentEligibilityService } from '../application/students/services/enrollment-eligibility.service';
 import { ListStudentEnrollmentsUseCase } from '../application/students/usecases/list-student-enrollments.usecase';
 import { ExportStudentsUseCase } from '../application/students/usecases/export-students.usecase';
 
@@ -54,6 +56,7 @@ import { UpdateClassUseCase } from '../application/classes/usecases/update-class
 import { UpsertSchedulesUseCase } from '../application/classes/usecases/upsert-schedules.usecase';
 import { AssignStaffUseCase } from '../application/classes/usecases/assign-staff.usecase';
 import { RemoveStaffUseCase } from '../application/classes/usecases/remove-staff.usecase';
+import { ChangeMainTeacherUseCase } from '../application/classes/usecases/change-main-teacher.usecase';
 import { GetRosterUseCase } from '../application/classes/usecases/get-roster.usecase';
 import { AddEnrollmentToClassUseCase } from '../application/classes/usecases/add-enrollment.usecase';
 import { CloseClassUseCase } from '../application/classes/usecases/close-class.usecase';
@@ -66,6 +69,7 @@ import { UpdateSessionUseCase } from '../application/sessions/usecases/update-se
 import { ListTeacherSessionsUseCase } from '../application/sessions/usecases/list-teacher-sessions.usecase';
 
 import { ListSessionFeedbackUseCase } from '../application/feedback/usecases/list-session-feedback.usecase';
+import { GetEnrollmentAttendanceSummaryUseCase } from '../application/feedback/usecases/get-enrollment-attendance-summary.usecase';
 import { ListStudentFeedbackUseCase } from '../application/feedback/usecases/list-student-feedback.usecase';
 import { UpsertSessionFeedbackUseCase } from '../application/feedback/usecases/upsert-session-feedback.usecase';
 import { ListStudentScoresUseCase } from '../application/feedback/usecases/list-student-scores.usecase';
@@ -94,6 +98,8 @@ import { GetInvoiceUseCase } from '../application/finance/usecases/get-invoice.u
 import { UpdateInvoiceStatusUseCase } from '../application/finance/usecases/update-invoice-status.usecase';
 import { CreatePaymentUseCase } from '../application/finance/usecases/create-payment.usecase';
 import { GetStudentFinanceUseCase } from '../application/finance/usecases/get-student-finance.usecase';
+import { ListStudentPaymentStatusUseCase } from '../application/finance/usecases/list-student-payment-status.usecase';
+import { ExportStudentPaymentStatusUseCase } from '../application/finance/usecases/export-student-payment-status.usecase';
 import { ExportInvoicesUseCase } from '../application/finance/usecases/export-invoices.usecase';
 import { FinanceExporter } from '../infrastructure/excel/finance.exporter';
 import { ExportPaymentsUseCase } from '../application/finance/usecases/export-payments.usecase';
@@ -129,6 +135,7 @@ export function buildContainer() {
   const feePlanRepo = new FeePlanPgRepo();
   const invoiceRepo = new InvoicePgRepo();
   const paymentRepo = new PaymentPgRepo();
+  const studentPaymentStatusRepo = new StudentPaymentStatusPgRepo();
   // System repositories
   const auditRepo        = new AuditPgRepo();
   const notificationRepo = new NotificationPgRepo();
@@ -137,6 +144,7 @@ export function buildContainer() {
   const feedbackExporter = new FeedbackExporter();
   const feedbackImporter = new FeedbackImporter();
   const financeExporter  = new FinanceExporter();
+  const createInvoiceUseCase = new CreateInvoiceUseCase(invoiceRepo, enrollmentRepo, classRepo, programRepo, feePlanRepo);
   const paymentsExporter  = new PaymentsExporter();
   const trialsExporter  = new TrialsExporter();
   const studentsExporter  = new StudentsExporter();
@@ -182,10 +190,10 @@ export function buildContainer() {
       getStudentUseCase: new GetStudentUseCase(studentRepo),
       createStudentUseCase: new CreateStudentUseCase(studentRepo),
       updateStudentUseCase: new UpdateStudentUseCase(studentRepo),
-      createEnrollmentUseCase: new CreateEnrollmentUseCase(enrollmentRepo, studentRepo),
+      createEnrollmentUseCase: new CreateEnrollmentUseCase(enrollmentRepo, studentRepo, classRepo, new EnrollmentEligibilityService(enrollmentRepo, invoiceRepo, paymentRepo)),
       updateEnrollmentStatusUseCase: new UpdateEnrollmentStatusUseCase(enrollmentRepo),
-      transferEnrollmentUseCase: new TransferEnrollmentUseCase(enrollmentRepo, pool),
-      listStudentEnrollmentsUseCase: new ListStudentEnrollmentsUseCase(enrollmentRepo, studentRepo),
+      transferEnrollmentUseCase: new TransferEnrollmentUseCase(enrollmentRepo, classRepo, pool, new EnrollmentEligibilityService(enrollmentRepo, invoiceRepo, paymentRepo), invoiceRepo, createInvoiceUseCase),
+      listStudentEnrollmentsUseCase: new ListStudentEnrollmentsUseCase(enrollmentRepo, studentRepo, feedbackRepo),
       exportStudentsUseCase: new ExportStudentsUseCase(studentRepo, studentsExporter),
     },
     classes: {
@@ -199,23 +207,25 @@ export function buildContainer() {
       upsertSchedulesUseCase: new UpsertSchedulesUseCase(classRepo),
       assignStaffUseCase: new AssignStaffUseCase(classRepo, classStaffRepo, userRepo),
       removeStaffUseCase: new RemoveStaffUseCase(classRepo, classStaffRepo),
+      changeMainTeacherUseCase: new ChangeMainTeacherUseCase(classRepo, classStaffRepo, sessionRepo, userRepo),
       getRosterUseCase: new GetRosterUseCase(classRepo, rosterRepo),
-      addEnrollmentToClassUseCase: new AddEnrollmentToClassUseCase(classRepo, rosterRepo, enrollmentRepo, pool),
-      closeClassUseCase: new CloseClassUseCase(classRepo, auditWriter),
-      promoteClassUseCase: new PromoteClassUseCase(pool),
+      addEnrollmentToClassUseCase: new AddEnrollmentToClassUseCase(classRepo, rosterRepo, enrollmentRepo, pool, new EnrollmentEligibilityService(enrollmentRepo, invoiceRepo, paymentRepo)),
+      closeClassUseCase: new CloseClassUseCase(classRepo, enrollmentRepo, auditWriter, pool),
+      promoteClassUseCase: new PromoteClassUseCase(pool, new EnrollmentEligibilityService(enrollmentRepo, invoiceRepo, paymentRepo), createInvoiceUseCase),
     },
     sessions: {
       sessionRepo,
       generateSessionsUseCase: new GenerateSessionsUseCase(sessionRepo, classRepo, classStaffRepo, programRepo, unitRepo),
-      listClassSessionsUseCase: new ListClassSessionsUseCase(sessionRepo),
+      listClassSessionsUseCase: new ListClassSessionsUseCase(sessionRepo, classStaffRepo),
       getSessionUseCase: new GetSessionUseCase(sessionRepo),
-      updateSessionUseCase: new UpdateSessionUseCase(sessionRepo, userRepo),
+      updateSessionUseCase: new UpdateSessionUseCase(sessionRepo, userRepo, classRepo, programRepo, unitRepo),
       listTeacherSessionsUseCase: new ListTeacherSessionsUseCase(sessionRepo),
     },
     feedback: {
       feedbackRepo,
       scoreRepo,
-      listSessionFeedbackUseCase: new ListSessionFeedbackUseCase(feedbackRepo, rosterRepo),
+      listSessionFeedbackUseCase: new ListSessionFeedbackUseCase(feedbackRepo, rosterRepo, sessionRepo),
+      getEnrollmentAttendanceSummaryUseCase: new GetEnrollmentAttendanceSummaryUseCase(feedbackRepo, enrollmentRepo),
       listStudentFeedbackUseCase: new ListStudentFeedbackUseCase(feedbackRepo),
       upsertSessionFeedbackUseCase: new UpsertSessionFeedbackUseCase(feedbackRepo, sessionRepo, rosterRepo, classRepo),
       listStudentScoresUseCase: new ListStudentScoresUseCase(scoreRepo),
@@ -252,7 +262,7 @@ export function buildContainer() {
       createTrialUseCase: new CreateTrialUseCase(trialRepo),
       updateTrialUseCase: new UpdateTrialUseCase(trialRepo),
       scheduleTrialUseCase: new ScheduleTrialUseCase(trialRepo),
-      convertTrialUseCase: new ConvertTrialUseCase(trialRepo, studentRepo, enrollmentRepo),
+      convertTrialUseCase: new ConvertTrialUseCase(),
       exportTrialsUseCase: new ExportTrialsUseCase(trialRepo, trialsExporter),
     },
     finance: {
@@ -264,11 +274,13 @@ export function buildContainer() {
       updateFeePlanUseCase:       new UpdateFeePlanUseCase(feePlanRepo),
       deleteFeePlanUseCase:       new DeleteFeePlanUseCase(feePlanRepo),
       listInvoicesUseCase:        new ListInvoicesUseCase(invoiceRepo, paymentRepo),
-      createInvoiceUseCase:       new CreateInvoiceUseCase(invoiceRepo, enrollmentRepo, classRepo, programRepo, feePlanRepo),
+      createInvoiceUseCase,
       getInvoiceUseCase:          new GetInvoiceUseCase(invoiceRepo, paymentRepo),
       updateInvoiceStatusUseCase: new UpdateInvoiceStatusUseCase(invoiceRepo, paymentRepo),
       createPaymentUseCase:       new CreatePaymentUseCase(invoiceRepo, paymentRepo),
       getStudentFinanceUseCase:   new GetStudentFinanceUseCase(enrollmentRepo, invoiceRepo, paymentRepo),
+      listStudentPaymentStatusUseCase: new ListStudentPaymentStatusUseCase(studentPaymentStatusRepo),
+      exportStudentPaymentStatusUseCase: new ExportStudentPaymentStatusUseCase(studentPaymentStatusRepo, financeExporter),
       exportInvoicesUseCase:      new ExportInvoicesUseCase(invoiceRepo as any, financeExporter),
       exportPaymentsUseCase:      new ExportPaymentsUseCase(paymentRepo, paymentsExporter),
     },

@@ -29,6 +29,8 @@ export interface InvoiceRepoPort {
     status?: string;
     enrollmentId?: string;
     overdue?: boolean;
+    /** R6: true = bao gồm enrollment đã kết thúc (DROPPED/TRANSFERRED/GRADUATED); false (mặc định) = chỉ ACTIVE/PAUSED */
+    includeTerminatedEnrollments?: boolean;
     limit?: number;
   }): Promise<any[]>;
 

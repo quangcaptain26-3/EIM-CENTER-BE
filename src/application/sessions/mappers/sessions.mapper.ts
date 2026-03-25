@@ -4,6 +4,7 @@ export interface SessionResponse {
   id: string;
   classId: string;
   sessionDate: string; // ISO String
+  sessionStatus: string;
   unitNo: number;
   lessonNo: number;
   lessonPattern: string | null;
@@ -23,6 +24,7 @@ export class SessionMapper {
       id: session.id,
       classId: session.classId,
       sessionDate: session.sessionDate.toISOString(),
+      sessionStatus: session.sessionStatus,
       unitNo: session.unitNo,
       lessonNo: session.lessonNo,
       lessonPattern: session.lessonPattern ?? null,

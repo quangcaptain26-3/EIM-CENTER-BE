@@ -5,6 +5,7 @@ import { AddEnrollmentBody } from "../dtos/class.dto";
 import { AppError } from "../../../shared/errors/app-error";
 import { canEnroll } from "../../../domain/classes/services/class-capacity.rule";
 import type { Pool, PoolClient } from "pg";
+import type { EnrollmentEligibilityService } from "../../students/services/enrollment-eligibility.service";
 
 export class AddEnrollmentToClassUseCase {
   constructor(
@@ -12,8 +13,15 @@ export class AddEnrollmentToClassUseCase {
     private readonly rosterRepo: RosterRepoPort,
     private readonly enrollmentRepo: EnrollmentRepoPort,
     private readonly dbPool: Pool,
+    private readonly eligibilityService: EnrollmentEligibilityService,
   ) {}
 
+  /**
+   * EDGE CASE C — Thêm học sinh vào lớp đã chạy (vd: lớp đã có 5 session):
+   * Option A (đang dùng): KHÔNG tạo session_feedback record trống cho các session đã qua.
+   * Lý do: getAttendanceSummaries dùng LEFT JOIN — học sinh không có record vẫn tính totalSessions,
+   * absent_count=0. Export feedback xử lý học sinh mới bằng cách bỏ qua session trước startDate.
+   */
   async execute(classId: string, input: AddEnrollmentBody, actorUserId?: string | null) {
     // Transaction + lock class row để chống race vượt capacity.
     const client: PoolClient = await this.dbPool.connect();
@@ -51,6 +59,15 @@ export class AddEnrollmentToClassUseCase {
           throw AppError.notFound(`Không tìm thấy enrollment với ID: ${input.enrollmentId}`);
         }
 
+        // R4: Chặn nếu học viên còn nợ quá hạn
+        const hasOverdue = await this.eligibilityService.studentHasOverdue(enrollment.studentId);
+        if (hasOverdue) {
+          throw AppError.badRequest(
+            "Học viên có hóa đơn quá hạn chưa thanh toán. Vui lòng xử lý nợ trước khi thêm vào lớp.",
+            { code: "ENROLLMENT_BLOCKED_OVERDUE", studentId: enrollment.studentId },
+          );
+        }
+
         if (enrollment.classId === classId) {
           throw AppError.badRequest("Học viên đã ở trong lớp học này");
         }
@@ -75,6 +92,25 @@ export class AddEnrollmentToClassUseCase {
 
       // 4) Nếu tạo enrollment mới
       if (input.studentId && input.startDate) {
+        // R4: Chặn nếu học viên còn nợ quá hạn
+        const hasOverdue = await this.eligibilityService.studentHasOverdue(input.studentId);
+        if (hasOverdue) {
+          throw AppError.badRequest(
+            "Học viên có hóa đơn quá hạn chưa thanh toán. Vui lòng xử lý nợ trước khi thêm vào lớp.",
+            { code: "ENROLLMENT_BLOCKED_OVERDUE", studentId: input.studentId },
+          );
+        }
+
+        // R5: Chặn parallel enrollment — 1 học sinh chỉ 1 enrollment ACTIVE/PAUSED
+        const existingEnrollments = await this.enrollmentRepo.listByStudent(input.studentId);
+        const hasActive = existingEnrollments.some((e) => e.status === "ACTIVE" || e.status === "PAUSED");
+        if (hasActive) {
+          throw AppError.badRequest(
+            "Học viên đã có lớp đang học. Vui lòng chuyển lớp hoặc kết thúc lớp hiện tại trước khi thêm vào lớp mới.",
+            { code: "ENROLLMENT_ONE_ACTIVE_PER_STUDENT", studentId: input.studentId },
+          );
+        }
+
         const newEnrollment = await this.enrollmentRepo.create(
           {
             studentId: input.studentId,

@@ -1,4 +1,6 @@
--- migration: 11_split_sales_finance_role.sql
+-- Mô tả: Tách role SALES_FINANCE thành SALES và ACCOUNTANT (cập nhật auth_roles, auth_role_permissions).
+
+-- migration: 13_split_sales_finance_role.sql
 -- Tách role SALES_FINANCE thành SALES và ACCOUNTANT
 -- Cập nhật dữ liệu hiện có trong auth_roles và auth_role_permissions
 

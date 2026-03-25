@@ -128,6 +128,28 @@ financeRouter.post(
 );
 
 // ==========================================
+// DANH SÁCH TRẠNG THÁI THANH TOÁN HỌC SINH
+// GET /finance/student-payment-status
+// ==========================================
+
+// Export phải đứng trước /student-payment-status để không bị match nhầm
+financeRouter.get(
+  "/student-payment-status/export",
+  authMiddleware,
+  requireRoles(READ_ROLES),
+  requirePermissions(READ_PERMISSIONS),
+  controller.exportStudentPaymentStatus.bind(controller)
+);
+
+financeRouter.get(
+  "/student-payment-status",
+  authMiddleware,
+  requireRoles(READ_ROLES),
+  requirePermissions(READ_PERMISSIONS),
+  controller.listStudentPaymentStatus.bind(controller)
+);
+
+// ==========================================
 // STUDENT FINANCE (mounted on /api/v1/students/:id)
 // ==========================================
 

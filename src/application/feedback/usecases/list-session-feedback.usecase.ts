@@ -1,15 +1,20 @@
 import { RosterRepoPort } from "../../../domain/classes/repositories/roster.repo.port";
 import { FeedbackRepoPort } from "../../../domain/feedback/repositories/feedback.repo.port";
+import { ISessionRepository } from "../../../domain/sessions/repositories/session.repo.port";
 
 export class ListSessionFeedbackUseCase {
   constructor(
     private readonly feedbackRepo: FeedbackRepoPort,
-    private readonly rosterRepo: RosterRepoPort
+    private readonly rosterRepo: RosterRepoPort,
+    private readonly sessionRepo: ISessionRepository
   ) {}
 
   async execute(classId: string, sessionId: string) {
-    // 1. Lấy danh sách học viên trong lớp (chỉ active)
-    const roster = await this.rosterRepo.listRoster(classId);
+    const session = await this.sessionRepo.findById(sessionId);
+    if (!session) return [];
+
+    // 1. Roster tại thời điểm buổi học (tránh mất học viên đã chuyển lớp / khớp với upsert & export)
+    const roster = await this.rosterRepo.listRosterAtDate(classId, session.sessionDate);
     
     // 2. Lấy feedback hiện tại của session
     const existingFeedbacks = await this.feedbackRepo.listBySession(sessionId);

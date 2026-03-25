@@ -1,6 +1,6 @@
 -- File: 03_seed_classes_students.sql
 -- Mục đích: Khởi tạo dữ liệu Students, Classes, schedules và Enrollments
--- Phụ thuộc: 00_seed_roles_permissions.sql, 02_seed_curriculum.sql
+-- Phụ thuộc: 01_seed_auth.sql, 02_seed_curriculum.sql
 
 SET client_encoding = 'UTF8';
 
@@ -46,7 +46,7 @@ INSERT INTO classes (id, code, name, program_id, room, capacity, start_date, sta
   ('78b1093b-6f85-4a32-956b-8b93c04b950e', 'EIM1-STARTERS-2024B', 'EIM1 Starters 2024B', 'd0af2da6-2e86-41e4-9400-34160e9ac6ae', 'Room S2', 12, '2024-09-02', 'CLOSED')
 ON CONFLICT (id) DO NOTHING;
 
--- 4. Khởi tạo Lịch học (Schedules)
+-- 4. Khởi tạo Lịch học (Schedules) — cho lớp ACTIVE demo Teacher nhập feedback
 INSERT INTO class_schedules (id, class_id, weekday, start_time, end_time) VALUES
   -- EIM1-STARTERS-2025A: Thứ 2 (1) & Thứ 4 (3)
   (gen_random_uuid(), 'e8c18712-51c2-47ba-b3d2-be18724f4241', 1, '18:00:00', '19:30:00'),
@@ -54,20 +54,18 @@ INSERT INTO class_schedules (id, class_id, weekday, start_time, end_time) VALUES
   -- EIM1-MOVERS-2025A: Thứ 3 (2) & Thứ 5 (4)
   (gen_random_uuid(), '3a98f331-e7d6-4bda-9d70-ac98edc8f432', 2, '18:00:00', '19:30:00'),
   (gen_random_uuid(), '3a98f331-e7d6-4bda-9d70-ac98edc8f432', 4, '18:00:00', '19:30:00')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (class_id, weekday, start_time) DO NOTHING;
 
--- 5. Gán Nhân sự cho lớp (Class Staff)
--- Users: teacher (6e374495-8f2c-416f-96e2-b6fd525f408c), academic (80eb7da6-ea5d-4dd3-9da8-2135bcdb1fe9)
+-- 5. Gán Nhân sự cho lớp (Class Staff) — Teacher demo nhập feedback
+-- Users: teacher (MAIN), teacher2 (TA)
 INSERT INTO class_staff (id, class_id, user_id, type) VALUES
   (gen_random_uuid(), 'e8c18712-51c2-47ba-b3d2-be18724f4241', '6e374495-8f2c-416f-96e2-b6fd525f408c', 'MAIN'),
-  (gen_random_uuid(), 'e8c18712-51c2-47ba-b3d2-be18724f4241', '80eb7da6-ea5d-4dd3-9da8-2135bcdb1fe9', 'TA'),
-
-  -- Movers 2025A cũng có nhân sự để tiện test
+  (gen_random_uuid(), 'e8c18712-51c2-47ba-b3d2-be18724f4241', 'f92d2fb6-dbe6-4ba4-8111-cc847c046ecc', 'TA'),
   (gen_random_uuid(), '3a98f331-e7d6-4bda-9d70-ac98edc8f432', '6e374495-8f2c-416f-96e2-b6fd525f408c', 'MAIN'),
-  (gen_random_uuid(), '3a98f331-e7d6-4bda-9d70-ac98edc8f432', '80eb7da6-ea5d-4dd3-9da8-2135bcdb1fe9', 'TA')
-ON CONFLICT DO NOTHING;
+  (gen_random_uuid(), '3a98f331-e7d6-4bda-9d70-ac98edc8f432', 'f92d2fb6-dbe6-4ba4-8111-cc847c046ecc', 'TA')
+ON CONFLICT (class_id, user_id, type) DO NOTHING;
 
--- 6. Khởi tạo Enrollments với UUID cố định
+-- 6. Khởi tạo Enrollments — ≥3 học sinh ACTIVE mỗi lớp để demo roster
 INSERT INTO enrollments (id, student_id, class_id, status, start_date) VALUES
   ('2cef09b6-4baf-45fa-a887-fbe9e94cb81e', '0fd2c4b1-66b5-4594-bddc-4f8ccdfd7097', 'e8c18712-51c2-47ba-b3d2-be18724f4241', 'ACTIVE', '2025-09-01'),
   ('d88142cb-2fea-47f4-82ac-d19b80783d45', '24644201-b5a2-435d-ae34-f59b264a83f1', 'e8c18712-51c2-47ba-b3d2-be18724f4241', 'ACTIVE', '2025-09-01'),

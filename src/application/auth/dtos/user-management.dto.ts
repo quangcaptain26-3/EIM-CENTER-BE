@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const ListUsersQuerySchema = z.object({
   search: z.string().optional(),
   roleCode: z.string().optional(),
+  role: z.string().optional(), // Alias: role=teacher -> roleCode=TEACHER (chọn cover teacher)
   status: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),

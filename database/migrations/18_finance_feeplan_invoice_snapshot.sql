@@ -1,3 +1,5 @@
+-- Mô tả: Finance journey — snapshot fee_plan trên invoice, FK program ↔ fee_plan.
+
 SET client_encoding = 'UTF8';
 
 -- ============================================================

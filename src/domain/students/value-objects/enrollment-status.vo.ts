@@ -1,6 +1,7 @@
 export const EnrollmentStatuses = [
   "ACTIVE",
   "PAUSED",
+  "PENDING",
   "DROPPED",
   "TRANSFERRED",
   "GRADUATED"

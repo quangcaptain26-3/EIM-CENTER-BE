@@ -16,6 +16,7 @@ export class ProgramPgRepo implements ProgramRepoPort {
       code: row.code,
       name: row.name,
       level: row.level,
+      sortOrder: row.sort_order,
       totalUnits: row.total_units,
       lessonsPerUnit: row.lessons_per_unit,
       sessionsPerWeek: row.sessions_per_week,
@@ -25,10 +26,12 @@ export class ProgramPgRepo implements ProgramRepoPort {
   }
 
   async listPrograms(): Promise<Program[]> {
+    // sort_order có từ migration 27; nếu DB chưa chạy migration 27 thì dùng level để sắp xếp
     const query = `
-      SELECT id, code, name, level, total_units, lessons_per_unit, sessions_per_week, fee_plan_id, created_at
+      SELECT id, code, name, level, total_units, lessons_per_unit, sessions_per_week, fee_plan_id, created_at,
+             CASE level WHEN 'KINDY' THEN 1 WHEN 'STARTERS' THEN 2 WHEN 'MOVERS' THEN 3 WHEN 'FLYERS' THEN 4 ELSE 99 END AS _ord
       FROM curriculum_programs
-      ORDER BY created_at DESC;
+      ORDER BY _ord ASC, created_at DESC;
     `;
     const result = await pool.query(query);
     return result.rows.map(this.mapToProgram);

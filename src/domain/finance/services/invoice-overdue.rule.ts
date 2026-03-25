@@ -2,6 +2,10 @@ import type { InvoiceStatus } from '../value-objects/invoice-status.vo';
 
 /**
  * Overdue source of truth (Backend):
+ * - Điều kiện overdue: status IN ('ISSUED','OVERDUE') AND due_date < today AND remainingAmount > 0.
+ * - Timezone: Dùng local date của server. Nếu chạy Docker/UTC, cần set TZ=Asia/Ho_Chi_Minh hoặc
+ *   so sánh theo date tại Vietnam (UTC+7) để "hôm nay" chính xác.
+ *
  * - Một hóa đơn được xem là OVERDUE nếu:
  *   - status hiện tại là ISSUED hoặc OVERDUE (tức không phải DRAFT/PAID/CANCELED)
  *   - dueDate đã qua (so với ngày hiện tại, theo local date)

@@ -31,7 +31,7 @@ export function buildPaths() {
         },
       },
     },
-    '/api/v1/auth/login': {
+    '/auth/login': {
       post: {
         tags: ['Auth'],
         summary: 'Đăng nhập vào hệ thống',
@@ -53,7 +53,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/auth/refresh': {
+    '/auth/refresh': {
       post: {
         tags: ['Auth'],
         summary: 'Cấp lại token mới dựa trên refresh token',
@@ -75,7 +75,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/auth/logout': {
+    '/auth/logout': {
       post: {
         tags: ['Auth'],
         summary: 'Đăng xuất khỏi hệ thống',
@@ -89,11 +89,15 @@ export function buildPaths() {
           '200': {
             description: 'Đăng xuất thành công',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/LogoutResponse' } } }
+          },
+          '401': {
+            description: 'Refresh token không hợp lệ hoặc đã thu hồi',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
           }
         }
       }
     },
-    '/api/v1/auth/me': {
+    '/auth/me': {
       get: {
         tags: ['Auth'],
         summary: 'Lấy thông tin người dùng đang đăng nhập',
@@ -124,7 +128,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 2B: CURRICULUM
     // ==========================================
-    '/api/v1/curriculum/programs': {
+    '/curriculum/programs': {
       get: {
         tags: ['Curriculum'],
         summary: 'Lấy danh sách các Chương trình học',
@@ -177,7 +181,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/curriculum/programs/{id}': {
+    '/curriculum/programs/{id}': {
       get: {
         tags: ['Curriculum'],
         summary: 'Lấy thông tin chi tiết Chương trình học',
@@ -233,7 +237,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/curriculum/programs/{id}/units': {
+    '/curriculum/programs/{id}/units': {
       get: {
         tags: ['Curriculum'],
         summary: 'Lấy danh sách Unit của Chương trình học',
@@ -292,7 +296,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/curriculum/units/{unitId}': {
+    '/curriculum/units/{unitId}': {
       get: {
         tags: ['Curriculum'],
         summary: 'Lấy chi tiết Unit kèm danh sách Lessons đính kèm',
@@ -352,7 +356,7 @@ export function buildPaths() {
     // ==========================================
     // CURRICULUM IMPORT/EXPORT (JSON)
     // ==========================================
-    '/api/v1/curriculum/export': {
+    '/curriculum/export': {
       get: {
         tags: ['Curriculum'],
         summary: 'Xuất Curriculum ra JSON (program/unit/lesson)',
@@ -373,7 +377,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/curriculum/import': {
+    '/curriculum/import': {
       post: {
         tags: ['Curriculum'],
         summary: 'Import/Upsert Curriculum từ JSON',
@@ -398,7 +402,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 3A: STUDENTS & ENROLLMENTS
     // ==========================================
-    '/api/v1/students': {
+    '/students': {
       get: {
         tags: ['Students'],
         summary: 'Lấy danh sách Học viên',
@@ -441,7 +445,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/students/export': {
+    '/students/export': {
       get: {
         tags: ['Students'],
         summary: 'Xuất danh sách Học viên ra Excel',
@@ -469,7 +473,7 @@ export function buildPaths() {
         },
       },
     },
-    '/api/v1/students/{id}': {
+    '/students/{id}': {
       get: {
         tags: ['Students'],
         summary: 'Lấy chi tiết Học viên',
@@ -523,7 +527,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/students/{id}/enrollments': {
+    '/students/{id}/enrollments': {
       get: {
         tags: ['Students'],
         summary: 'Lấy danh sách các lớp học đã ghi danh của Học viên',
@@ -552,7 +556,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/enrollments': {
+    '/enrollments': {
       post: {
         tags: ['Students'],
         summary: 'Tạo mới Ghi danh (Đăng ký học)',
@@ -579,7 +583,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/enrollments/{id}/status': {
+    '/enrollments/{id}/status': {
       patch: {
         tags: ['Students'],
         summary: 'Cập nhật trạng thái Ghi danh',
@@ -609,7 +613,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/enrollments/{id}/transfer': {
+    '/enrollments/{id}/transfer': {
       post: {
         tags: ['Students'],
         summary: 'Chuyển lớp cho Học viên',
@@ -649,7 +653,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 4: CLASSES
     // ==========================================
-    '/api/v1/classes': {
+    '/classes': {
       get: {
         tags: ['Classes'],
         summary: 'Lấy danh sách các Lớp học',
@@ -694,7 +698,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}': {
+    '/classes/{id}': {
       get: {
         tags: ['Classes'],
         summary: 'Lấy chi tiết Lớp học (bao gồm schedules và staff)',
@@ -748,7 +752,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/schedules': {
+    '/classes/{id}/schedules': {
       put: {
         tags: ['Classes'],
         summary: 'Cập nhật toàn bộ Lịch học (Upsert)',
@@ -781,7 +785,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/schedule': {
+    '/classes/{id}/schedule': {
       get: {
         tags: ['Classes'],
         summary: 'Lấy Lịch học của Lớp học (Alias)',
@@ -810,7 +814,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/staff': {
+    '/classes/{id}/staff': {
       post: {
         tags: ['Classes'],
         summary: 'Phân công Giáo viên/Staff vào Lớp học',
@@ -868,7 +872,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/roster': {
+    '/classes/{id}/roster': {
       get: {
         tags: ['Classes'],
         summary: 'Danh sách Điểm danh (Học viên đang ACTIVE trong lớp)',
@@ -897,7 +901,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/enrollments': {
+    '/classes/{id}/enrollments': {
       post: {
         tags: ['Classes'],
         summary: 'Thêm học viên vào lớp (Tạo mới hoặc thêm từ enrollment cũ)',
@@ -930,7 +934,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/close': {
+    '/classes/{id}/close': {
       post: {
         tags: ['Classes'],
         summary: 'Đóng lớp học',
@@ -943,7 +947,50 @@ export function buildPaths() {
           '200': {
             description: 'Đóng lớp thành công',
             content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean', example: true }, data: { type: 'object' } } } } }
-          }
+          },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'Không tìm thấy lớp', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        }
+      }
+    },
+    '/classes/{id}/promotion': {
+      post: {
+        tags: ['Classes'],
+        summary: 'Promote học viên sang lớp mới',
+        description: 'Quyền: ROOT, ACADEMIC. Chuyển học viên ACTIVE sang lớp đích, có thể đóng lớp nguồn.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' }, description: 'ID lớp nguồn' }
+        ],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/PromoteClassRequest' } } }
+        },
+        responses: {
+          '200': {
+            description: 'Promotion thành công',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        promotedCount: { type: 'integer' },
+                        closedSourceClass: { type: 'boolean' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'Không tìm thấy lớp', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         }
       }
     },
@@ -951,7 +998,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 5: SESSIONS
     // ==========================================
-    '/api/v1/classes/{id}/sessions/generate': {
+    '/classes/{id}/sessions/generate': {
       post: {
         tags: ['Sessions'],
         summary: 'Sinh danh sách buổi học dự kiến (ROOT, DIRECTOR, ACADEMIC)',
@@ -971,7 +1018,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/classes/{id}/sessions': {
+    '/classes/{id}/sessions': {
       get: {
         tags: ['Sessions'],
         summary: 'Lấy danh sách buổi học của Lớp học (ROOT, DIRECTOR, ACADEMIC, ACCOUNTANT, TEACHER)',
@@ -987,7 +1034,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/sessions/{sessionId}': {
+    '/sessions/{sessionId}': {
       get: {
         tags: ['Sessions'],
         summary: 'Lấy chi tiết Buổi học (ROOT, DIRECTOR, ACADEMIC, ACCOUNTANT, TEACHER)',
@@ -1025,7 +1072,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 6: FEEDBACK & SCORES
     // ==========================================
-    '/api/v1/classes/{classId}/export': {
+    '/classes/{classId}/export': {
       get: {
         tags: ['Feedback'],
         summary: 'Xuất báo cáo điểm danh & nhận xét (Excel)',
@@ -1056,7 +1103,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/sessions/{sessionId}/feedback': {
+    '/sessions/{sessionId}/feedback': {
       get: {
         tags: ['Feedback'],
         summary: 'Lấy danh sách nhận xét của buổi học (ROOT, DIRECTOR, ACADEMIC, ACCOUNTANT, TEACHER)',
@@ -1068,11 +1115,76 @@ export function buildPaths() {
           '200': {
             description: 'Lấy nhận xét thành công',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/SessionFeedbackResponse' } } }
-          }
+          },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'Không tìm thấy buổi học', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         }
       }
     },
-    '/api/v1/sessions/{sessionId}/feedback/upsert': {
+    '/sessions/{sessionId}/feedback/template': {
+      get: {
+        tags: ['Feedback'],
+        summary: 'Tải template Excel nhập nhận xét cho buổi học',
+        description: 'Quyền: DIRECTOR, ACADEMIC, TEACHER. Trả về file Excel có sẵn roster, import lại qua POST /feedback/import.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'sessionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          '200': {
+            description: 'File Excel template',
+            headers: {
+              'Content-Disposition': { schema: { type: 'string' }, description: 'attachment; filename="..."' }
+            },
+            content: {
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+                schema: { type: 'string', format: 'binary' }
+              }
+            }
+          },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'Không tìm thấy buổi học', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        }
+      }
+    },
+    '/sessions/{sessionId}/feedback/import': {
+      post: {
+        tags: ['Feedback'],
+        summary: 'Import nhận xét từ file Excel (sau khi tải template)',
+        description: 'Quyền: TEACHER (buổi mình dạy), ACADEMIC, ROOT. Upload file .xlsx đã điền nhận xét.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'sessionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: { type: 'string', format: 'binary', description: 'File Excel .xlsx' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Import thành công',
+            content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'object' } } } } }
+          },
+          '400': { description: 'File không hợp lệ hoặc thiếu dữ liệu', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '404': { description: 'Không tìm thấy buổi học', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        }
+      }
+    },
+    '/sessions/{sessionId}/feedback/upsert': {
       post: {
         tags: ['Feedback'],
         summary: 'Cập nhật nhận xét của buổi học (ROOT, DIRECTOR, ACADEMIC, TEACHER)',
@@ -1106,7 +1218,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/students/{id}/feedback': {
+    '/students/{id}/feedback': {
       get: {
         tags: ['Feedback'],
         summary: 'Lấy lịch sử nhận xét của học viên (ROOT, DIRECTOR, ACADEMIC, ACCOUNTANT, TEACHER)',
@@ -1124,7 +1236,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/sessions/{sessionId}/scores/upsert': {
+    '/sessions/{sessionId}/scores/upsert': {
       post: {
         tags: ['Scores'],
         summary: 'Cập nhật điểm số cho buổi học (TEST/MIDTERM/FINAL) (ROOT, DIRECTOR, ACADEMIC, TEACHER)',
@@ -1158,7 +1270,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/students/{id}/scores': {
+    '/students/{id}/scores': {
       get: {
         tags: ['Scores'],
         summary: 'Lấy lịch sử điểm số của học viên (ROOT, DIRECTOR, ACADEMIC, ACCOUNTANT, TEACHER)',
@@ -1180,7 +1292,7 @@ export function buildPaths() {
     // ==========================================
     // MODULE 7: TRIALS PATHS
     // ==========================================
-    '/api/v1/trials': {
+    '/trials': {
       get: {
         tags: ['Trials'],
         summary: 'Lấy danh sách Khách hàng học thử (Trials)',
@@ -1215,7 +1327,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/trials/{id}': {
+    '/trials/{id}': {
       get: {
         tags: ['Trials'],
         summary: 'Lấy chi tiết Khách hàng học thử kèm lịch hẹn (nếu có)',
@@ -1249,7 +1361,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/trials/{id}/schedule': {
+    '/trials/{id}/schedule': {
       post: {
         tags: ['Trials'],
         summary: 'Đặt lịch hoặc cập nhật lịch học thử',
@@ -1282,7 +1394,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/trials/{id}/convert': {
+    '/trials/{id}/convert': {
       post: {
         tags: ['Trials'],
         summary: 'Chuyển đổi Khách học thử thành Học viên chính thức',
@@ -1303,7 +1415,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/trials/export': {
+    '/trials/export': {
       get: {
         tags: ['Trials'],
         summary: 'Xuất danh sách Trial Leads ra Excel',
@@ -1337,7 +1449,7 @@ export function buildPaths() {
     // MODULE 8: FINANCE PATHS
     // ==========================================
 
-    '/api/v1/finance/fee-plans': {
+    '/finance/fee-plans': {
       get: {
         tags: ['Finance'],
         summary: 'Danh sách Gói học phí',
@@ -1381,7 +1493,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/finance/fee-plans/{id}': {
+    '/finance/fee-plans/{id}': {
       patch: {
         tags: ['Finance'],
         summary: 'Cập nhật Gói học phí',
@@ -1403,7 +1515,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/finance/invoices/export': {
+    '/finance/invoices/export': {
       get: {
         tags: ['Finance'],
         summary: 'Xuất danh sách hóa đơn ra Excel',
@@ -1440,7 +1552,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/finance/payments/export': {
+    '/finance/payments/export': {
       get: {
         tags: ['Finance'],
         summary: 'Xuất danh sách thanh toán (payments) ra Excel',
@@ -1471,7 +1583,7 @@ export function buildPaths() {
       },
     },
 
-    '/api/v1/finance/invoices': {
+    '/finance/invoices': {
       get: {
         tags: ['Finance'],
         summary: 'Danh sách Hóa đơn học phí (có phân trang)',
@@ -1480,6 +1592,7 @@ export function buildPaths() {
         parameters: [
           { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['DRAFT', 'ISSUED', 'PAID', 'OVERDUE', 'CANCELED'] } },
           { name: 'enrollmentId', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+          { name: 'overdue', in: 'query', required: false, schema: { type: 'boolean' }, description: 'true: chỉ lấy hóa đơn quá hạn (due_date < hôm nay và còn nợ)' },
           { name: 'limit', in: 'query', required: false, schema: { type: 'integer', default: 20 } },
           { name: 'offset', in: 'query', required: false, schema: { type: 'integer', default: 0 } }
         ],
@@ -1487,7 +1600,9 @@ export function buildPaths() {
           '200': {
             description: 'Thành công',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/PagedInvoicesResponse' } } }
-          }
+          },
+          '401': { description: 'Chưa xác thực', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '403': { description: 'Không có quyền', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         }
       },
       post: {
@@ -1508,7 +1623,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/finance/invoices/{id}': {
+    '/finance/invoices/{id}': {
       get: {
         tags: ['Finance'],
         summary: 'Chi tiết Hóa đơn kèm thanh toán',
@@ -1526,7 +1641,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/finance/invoices/{id}/status': {
+    '/finance/invoices/{id}/status': {
       patch: {
         tags: ['Finance'],
         summary: 'Cập nhật trạng thái Hóa đơn',
@@ -1560,7 +1675,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/finance/payments': {
+    '/finance/payments': {
       post: {
         tags: ['Finance'],
         summary: 'Tạo mới Khoản thanh toán',
@@ -1591,7 +1706,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/students/{id}/finance': {
+    '/students/{id}/finance': {
       get: {
         tags: ['Finance'],
         summary: 'Tóm tắt tài chính của Học viên',
@@ -1615,7 +1730,7 @@ export function buildPaths() {
     // MODULE 9: SYSTEM – AUDIT LOGS & NOTIFICATIONS
     // ==========================================
 
-    '/api/v1/system/audit-logs': {
+    '/system/audit-logs': {
       get: {
         tags: ['System'],
         summary: 'Lấy danh sách Audit Log hệ thống',
@@ -1675,7 +1790,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/system/notifications': {
+    '/system/notifications': {
       get: {
         tags: ['System'],
         summary: 'Lấy danh sách thông báo của user hiện tại',
@@ -1709,7 +1824,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/system/notifications/read-all': {
+    '/system/notifications/read-all': {
       patch: {
         tags: ['System'],
         summary: 'Đánh dấu tất cả thông báo của user hiện tại là đã đọc',
@@ -1739,7 +1854,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/system/notifications/{id}/read': {
+    '/system/notifications/{id}/read': {
       patch: {
         tags: ['System'],
         summary: 'Đánh dấu thông báo là đã đọc',
@@ -1785,7 +1900,7 @@ export function buildPaths() {
       }
     },
 
-    '/api/v1/system/users': {
+    '/system/users': {
       get: {
         tags: ['System'],
         summary: 'Lấy danh sách Users (Phân trang, tìm kiếm, lọc)',
@@ -1822,7 +1937,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/system/users/{id}': {
+    '/system/users/{id}': {
       get: {
         tags: ['System'],
         summary: 'Lấy thông tin User theo ID',
@@ -1854,7 +1969,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/system/users/{id}/roles': {
+    '/system/users/{id}/roles': {
       post: {
         tags: ['System'],
         summary: 'Gán Role cho User',
@@ -1873,7 +1988,7 @@ export function buildPaths() {
         }
       }
     },
-    '/api/v1/system/users/{id}/roles/{roleCode}': {
+    '/system/users/{id}/roles/{roleCode}': {
       delete: {
         tags: ['System'],
         summary: 'Thu hồi Role của User',

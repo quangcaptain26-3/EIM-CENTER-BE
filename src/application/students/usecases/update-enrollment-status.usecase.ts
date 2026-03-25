@@ -20,6 +20,11 @@ export class UpdateEnrollmentStatusUseCase {
       throw AppError.badRequest(`Không thể chuyển trạng thái từ ${fromEnrollment.status} sang ${toStatus}.`);
     }
 
+    // Option A (đơn giản): Khi enrollment PAUSED hoặc DROPPED — giữ nguyên invoice, không tự động cancel.
+    // Lý do: Để kế toán xử lý thủ công (hoàn tiền, điều chỉnh) theo quy trình nội bộ.
+    // Invoice DRAFT/ISSUED/OVERDUE vẫn giữ nguyên; có thể cancel/hủy riêng qua API finance nếu cần.
+
+    // Trạng thái kết thúc (GRADUATED, DROPPED, TRANSFERRED): repo tự set end_date nếu chưa có
     const updated = await this.enrollmentRepo.updateStatus(id, toStatus, input.note);
     await this.enrollmentRepo.createHistory(id, fromEnrollment.status, toStatus, input.note, {
       changedBy: actorUserId ?? null,

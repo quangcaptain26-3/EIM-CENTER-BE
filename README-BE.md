@@ -11,22 +11,25 @@ eim-center-backend
 │  │  ├─ 05_sessions.sql
 │  │  ├─ 06_feedback.sql
 │  │  ├─ 07_feedback_columns.sql
-│  │  ├─ 07_trial.sql
-│  │  ├─ 08_finance.sql
-│  │  ├─ 09_enrollment_blueprint_fix.sql
-│  │  ├─ 09_system.sql
-│  │  ├─ 10_class_staff_semantics_fix.sql
-│  │  ├─ 10_fks_constraints.sql
-│  │  ├─ 11_split_sales_finance_role.sql
-│  │  ├─ 12_add_sessions_lesson_pattern.sql
-│  │  ├─ 13_class_staff_main_unique.sql
-│  │  ├─ 14_enrollment_capacity_guard.sql
-│  │  ├─ 15_journey_integrity_guards.sql
-│  │  ├─ 16_finance_feeplan_invoice_snapshot.sql
-│  │  ├─ 17_feedback_export_jobs.sql
-│  │  ├─ 18_director_read_only_policy.sql
-│  │  ├─ 19_sessions_staff_integrity.sql
-│  │  └─ 20_trial_converted_integrity_guard.sql
+│  │  ├─ 08_trial.sql
+│  │  ├─ 09_finance.sql
+│  │  ├─ 10_system.sql
+│  │  ├─ 11_enrollment_blueprint_fix.sql
+│  │  ├─ 12_class_staff_semantics_fix.sql
+│  │  ├─ 13_split_sales_finance_role.sql
+│  │  ├─ 14_add_sessions_lesson_pattern.sql
+│  │  ├─ 15_class_staff_main_unique.sql
+│  │  ├─ 16_enrollment_capacity_guard.sql
+│  │  ├─ 17_journey_integrity_guards.sql
+│  │  ├─ 18_finance_feeplan_invoice_snapshot.sql
+│  │  ├─ 19_feedback_export_jobs.sql
+│  │  ├─ 20_director_read_only_policy.sql
+│  │  ├─ 21_sessions_staff_integrity.sql
+│  │  ├─ 22_trial_converted_integrity_guard.sql
+│  │  ├─ 23_director_student_read_only_policy.sql
+│  │  ├─ 24_session_status_and_reschedule_changed_by.sql
+│  │  ├─ 25_enrollment_one_active_per_student.sql
+│  │  └─ 26_fks_constraints.sql
 │  ├─ scripts
 │  │  ├─ 00_full_reset.sql
 │  │  ├─ 01_create_db.sql
@@ -45,7 +48,7 @@ eim-center-backend
 ├─ nodemon.json
 ├─ package-lock.json
 ├─ package.json
-├─ README.md
+├─ README-BE.md
 ├─ src
 │  ├─ application
 │  │  ├─ auth
@@ -129,7 +132,8 @@ eim-center-backend
 │  │  │  │  ├─ fee-plan.dto.ts
 │  │  │  │  ├─ invoice.dto.ts
 │  │  │  │  ├─ payment.dto.ts
-│  │  │  │  └─ student-finance.dto.ts
+│  │  │  │  ├─ student-finance.dto.ts
+│  │  │  │  └─ student-payment-status.dto.ts
 │  │  │  ├─ mappers
 │  │  │  │  └─ finance.mapper.ts
 │  │  │  └─ usecases
@@ -139,10 +143,12 @@ eim-center-backend
 │  │  │     ├─ delete-fee-plan.usecase.ts
 │  │  │     ├─ export-invoices.usecase.ts
 │  │  │     ├─ export-payments.usecase.ts
+│  │  │     ├─ export-student-payment-status.usecase.ts
 │  │  │     ├─ get-invoice.usecase.ts
 │  │  │     ├─ get-student-finance.usecase.ts
 │  │  │     ├─ list-fee-plans.usecase.ts
 │  │  │     ├─ list-invoices.usecase.ts
+│  │  │     ├─ list-student-payment-status.usecase.ts
 │  │  │     ├─ update-fee-plan.usecase.ts
 │  │  │     └─ update-invoice-status.usecase.ts
 │  │  ├─ sessions
@@ -266,7 +272,8 @@ eim-center-backend
 │  │  │  ├─ repositories
 │  │  │  │  ├─ fee-plan.repo.port.ts
 │  │  │  │  ├─ invoice.repo.port.ts
-│  │  │  │  └─ payment.repo.port.ts
+│  │  │  │  ├─ payment.repo.port.ts
+│  │  │  │  └─ student-payment-status.repo.port.ts
 │  │  │  ├─ services
 │  │  │  │  ├─ invoice-overdue.rule.ts
 │  │  │  │  └─ invoice-status.rule.ts
@@ -335,7 +342,8 @@ eim-center-backend
 │  │  │  │  ├─ finance
 │  │  │  │  │  ├─ fee-plan.pg.repo.ts
 │  │  │  │  │  ├─ invoice.pg.repo.ts
-│  │  │  │  │  └─ payment.pg.repo.ts
+│  │  │  │  │  ├─ payment.pg.repo.ts
+│  │  │  │  │  └─ student-payment-status.pg.repo.ts
 │  │  │  │  ├─ sessions
 │  │  │  │  │  └─ session.pg.repo.ts
 │  │  │  │  ├─ students

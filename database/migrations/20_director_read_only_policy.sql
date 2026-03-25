@@ -1,4 +1,6 @@
--- migration: 18_director_read_only_policy.sql
+-- Mô tả: Thu hẹp quyền DIRECTOR (read-only finance/trials, giữ xem audit).
+
+-- migration: 20_director_read_only_policy.sql
 -- Mục tiêu:
 --   1) DIRECTOR chỉ read-heavy cho finance/trials (không WRITE)
 --   2) DIRECTOR vẫn giữ quyền xem audit log hệ thống

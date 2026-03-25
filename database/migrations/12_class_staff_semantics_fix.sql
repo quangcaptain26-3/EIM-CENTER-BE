@@ -1,3 +1,5 @@
+-- Mô tả: Chuẩn hóa class_staff (MAIN/TA), bỏ COVER — cập nhật dữ liệu và CHECK constraint.
+
 SET client_encoding = 'UTF8';
 
 -- FIX 6 (Làm rõ semantics class staff vs cover teacher):

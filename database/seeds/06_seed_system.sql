@@ -1,6 +1,6 @@
 -- File: 06_seed_system.sql
 -- Mục đích: Khởi tạo dữ liệu System (Notifications, Audit Logs)
--- Phụ thuộc: 00_seed_roles_permissions.sql
+-- Phụ thuộc: 01_seed_auth.sql
 
 SET client_encoding = 'UTF8';
 
@@ -8,8 +8,7 @@ SET client_encoding = 'UTF8';
 TRUNCATE TABLE system_notifications CASCADE;
 TRUNCATE TABLE system_audit_logs CASCADE;
 
--- 2. Khởi tạo Notifications
--- User: accountant (ec7e7bee-f0c9-4ae5-adb4-611ab24a419f)
+-- 2. Khởi tạo Notifications — Kế toán nhận thông báo công nợ
 INSERT INTO system_notifications (id, user_id, title, body, is_read, created_at) VALUES
   ('4045f2cf-65c1-42e5-a67c-5e36a95d63db', 'ec7e7bee-f0c9-4ae5-adb4-611ab24a419f', '2 hóa đơn đã quá hạn', 'Có 2 hóa đơn đã quá hạn cần xử lý.', FALSE, NOW()),
   ('da1d971c-548b-4564-86c0-a4d55e01d6f6', 'ec7e7bee-f0c9-4ae5-adb4-611ab24a419f', 'Thanh toán mới', 'Bạn có 1 thanh toán mới vừa được ghi nhận.', TRUE, NOW() - INTERVAL '1 day')

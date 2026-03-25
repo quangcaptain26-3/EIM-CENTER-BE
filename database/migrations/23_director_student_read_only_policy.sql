@@ -1,4 +1,6 @@
--- migration: 21_director_student_read_only_policy.sql
+-- Mô tả: DIRECTOR chỉ đọc domain học viên/ghi danh (gỡ quyền write).
+
+-- migration: 23_director_student_read_only_policy.sql
 -- Mục tiêu:
 --   - DIRECTOR chỉ read-heavy đối với domain học viên/ghi danh (không có quyền write như STUDENT_WRITE),
 --     tránh trường hợp DIRECTOR "vô tình write" làm drift roster/payment flow.

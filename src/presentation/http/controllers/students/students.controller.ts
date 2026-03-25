@@ -180,8 +180,11 @@ studentsRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { listStudentEnrollmentsUseCase } = req.app.locals.container.students;
-      const enrollments = await listStudentEnrollmentsUseCase.execute(req.params.id);
-      
+      const includeAttendanceSummary =
+        req.query.includeAttendanceSummary === 'true' || req.query.includeAttendanceSummary === '1';
+      const enrollments = await listStudentEnrollmentsUseCase.execute(req.params.id, {
+        includeAttendanceSummary,
+      });
       res.json({
         success: true,
         data: enrollments,

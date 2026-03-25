@@ -1,6 +1,6 @@
 /**
- * Kiểm tra xem giáo viên có quyền ghi đánh giá hoặc chấm điểm cho một buổi học (session) hay không.
- * Logic: teacherId truyền vào phải khớp với mainTeacherId hoặc coverTeacherId của session đo.
+ * Kiểm tra xem giáo viên có quyền GHI (submit) feedback/scores cho session hay không.
+ * Chỉ check main/cover của session (teacher_effective_id) — KHÔNG dùng class_staff.
  */
 export function teacherCanWriteSession(
   session: { mainTeacherId?: string | null; coverTeacherId?: string | null },
@@ -9,3 +9,4 @@ export function teacherCanWriteSession(
   if (!teacherId) return false;
   return session.mainTeacherId === teacherId || session.coverTeacherId === teacherId;
 }
+

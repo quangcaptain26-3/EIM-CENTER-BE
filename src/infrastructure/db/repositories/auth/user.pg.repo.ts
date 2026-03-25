@@ -75,18 +75,21 @@ export class UserPgRepository implements UserRepoPort {
     const conditions: string[] = [];
     let paramIndex = 1;
 
+    // Filter: tìm theo email hoặc tên (ILIKE case-insensitive)
     if (params.search) {
       conditions.push(`(u.email ILIKE $${paramIndex} OR u.full_name ILIKE $${paramIndex})`);
       values.push(`%${params.search}%`);
       paramIndex++;
     }
 
+    // Filter: lọc theo trạng thái (ACTIVE/INACTIVE)
     if (params.status) {
       conditions.push(`u.status = $${paramIndex}`);
       values.push(params.status);
       paramIndex++;
     }
 
+    // Filter: lọc theo role (JOIN qua auth_user_roles) — dùng cho chọn cover teacher
     if (params.roleCode) {
       conditions.push(`r.code = $${paramIndex}`);
       values.push(params.roleCode);

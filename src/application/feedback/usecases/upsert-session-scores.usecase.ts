@@ -1,6 +1,7 @@
 import { AppError } from "../../../shared/errors/app-error";
 import { ScoreRepoPort } from "../../../domain/feedback/repositories/score.repo.port";
 import { FeedbackPolicy } from "../../../domain/feedback/services/feedback.policy";
+import { canEditFeedbackByDeadline } from "../../../domain/feedback/services/feedback-edit-deadline.rule";
 import { ScorePolicy } from "../../../domain/feedback/services/score.policy";
 import { RosterRepoPort } from "../../../domain/classes/repositories/roster.repo.port";
 import { ISessionRepository } from "../../../domain/sessions/repositories/session.repo.port";
@@ -23,6 +24,12 @@ export class UpsertSessionScoresUseCase {
     if (!session) {
       throw AppError.notFound("Không tìm thấy buổi học");
     }
+    if (session.sessionStatus === "CANCELLED") {
+      throw AppError.badRequest("Không thể nhập điểm cho buổi học đã bị hủy", {
+        code: "SCORE/SESSION_CANCELLED",
+        sessionId,
+      });
+    }
 
     const klass = await this.classRepo.findById(session.classId);
     if (!klass) {
@@ -38,6 +45,16 @@ export class UpsertSessionScoresUseCase {
 
     ScorePolicy.assertSessionTypeAllowsScore(session.sessionType);
     FeedbackPolicy.assertCanWriteSession({ ...session, id: sessionId }, actor);
+
+    // R6: Teacher chỉ được sửa trong cửa sổ X ngày sau session; ACADEMIC/ROOT bỏ qua
+    const deadlineCheck = canEditFeedbackByDeadline(session.sessionDate, actor.roles);
+    if (!deadlineCheck.allowed) {
+      throw AppError.badRequest(deadlineCheck.reason ?? "Đã quá hạn chỉnh sửa", {
+        code: "FEEDBACK/EDIT_DEADLINE_PASSED",
+        sessionId,
+        sessionDate: session.sessionDate.toISOString(),
+      });
+    }
 
     // Chống orphan score theo thời điểm: chỉ cho phép nhập điểm cho học viên thuộc lớp tại ngày của session.
     const roster = await this.rosterRepo.listRosterAtDate(session.classId, session.sessionDate);
@@ -96,6 +113,9 @@ export class UpsertSessionScoresUseCase {
     });
 
     const upserted = await this.scoreRepo.upsertMany(itemsToUpsert);
-    return upserted.map(FeedbackMapper.toScoreResponse);
+    return {
+      data: upserted.map(FeedbackMapper.toScoreResponse),
+      sessionDate: session.sessionDate.toISOString(),
+    };
   }
 }

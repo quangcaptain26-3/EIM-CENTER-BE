@@ -19,4 +19,7 @@ export interface FeedbackRepoPort {
     options?: { tx?: DbTx }
   ): Promise<SessionFeedback[]>;
   listByStudent(studentId: string, limit?: number, offset?: number): Promise<SessionFeedback[]>;
+
+  /** Đếm số buổi vắng theo enrollment (chỉ enrollment có class_id) */
+  getAttendanceSummaries(enrollmentIds: string[]): Promise<Map<string, { absentCount: number; totalSessions: number }>>;
 }

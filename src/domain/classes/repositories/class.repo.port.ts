@@ -39,6 +39,11 @@ export interface ClassRepoPort {
   findById(id: string): Promise<Class | null>;
 
   /**
+   * Truy vấn lớp học bằng mã lớp (class_code) — dùng cho thao tác thân thiện người dùng
+   */
+  findByCode(code: string): Promise<Class | null>;
+
+  /**
    * Tạo mới lớp học
    */
   create(input: CreateClassInput): Promise<Class>;

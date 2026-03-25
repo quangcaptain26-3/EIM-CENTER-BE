@@ -34,4 +34,10 @@ export interface TrialRepoPort {
   upsertSchedule(trialId: string, classId: string, trialDate: Date): Promise<TrialSchedule>;
   findSchedule(trialId: string): Promise<TrialSchedule | null>;
   createConversion(trialId: string, studentId: string, enrollmentId: string): Promise<TrialConversion>;
+
+  /**
+   * Trial scheduled quá 1 ngày mà chưa update → dùng để notify Sales.
+   * WHERE status = 'SCHEDULED' AND trial_date < NOW() - INTERVAL '1 day'
+   */
+  listScheduledOverdue(deltaDays?: number): Promise<TrialLead[]>;
 }

@@ -1,26 +1,34 @@
 import { ISessionRepository } from "../../../domain/sessions/repositories/session.repo.port";
+import { ClassStaffRepoPort } from "../../../domain/classes/repositories/class-staff.repo.port";
 import { AppError } from "../../../shared/errors/app-error";
 import { Session } from "../../../domain/sessions/entities/session.entity";
 
 type Actor = { userId: string; roles: string[] };
 
 export class ListClassSessionsUseCase {
-  constructor(private readonly sessionRepo: ISessionRepository) {}
+  constructor(
+    private readonly sessionRepo: ISessionRepository,
+    private readonly classStaffRepo?: ClassStaffRepoPort,
+  ) {}
 
   /**
-   * Lấy danh sách buổi học của một lớp
+   * Lấy danh sách buổi học của một lớp.
+   * Teacher: xem TẤT CẢ sessions của lớp nếu class_staff HOẶC main/cover bất kỳ buổi nào.
    */
   async execute(classId: string, actor?: Actor): Promise<Session[]> {
     if (!classId) {
       throw AppError.badRequest("classId is required");
     }
 
-    // Visibility theo teacher:
-    // - TEACHER chỉ được xem sessions của lớp nếu họ là main/cover teacher của session đó.
-    // - Các role khác giữ nguyên hành vi cũ (xem toàn bộ sessions theo class).
-    if (actor?.roles?.includes("TEACHER")) {
+    if (actor?.roles?.includes("TEACHER") && this.classStaffRepo) {
+      // Teacher xem tất cả session lớp mình: class_staff hoặc main/cover bất kỳ buổi nào
+      const isStaff = await this.classStaffRepo.isTeacherOfClass(actor.userId, classId);
       const owned = await this.sessionRepo.listByTeacher(actor.userId);
-      return owned.filter((s) => s.classId === classId);
+      const hasAnyInClass = owned.some((s) => s.classId === classId);
+      if (isStaff || hasAnyInClass) {
+        return this.sessionRepo.listByClass(classId);
+      }
+      return [];
     }
 
     return this.sessionRepo.listByClass(classId);

@@ -19,13 +19,18 @@ export type SessionOwnershipShape = {
  */
 export class FeedbackPolicy {
   /**
-   * Teacher chỉ được ghi feedback/score/import cho session mình dạy hoặc cover.
-   * Theo design "manager read-only": các role quản lý chỉ được xem, không được ghi thay giáo viên.
+   * R7 Manager override: ACADEMIC/ROOT được ghi feedback/điểm bất kỳ session (bỏ qua ownership + deadline).
+   * Teacher: chỉ được ghi session mình dạy/cover, và phải trong cửa sổ chỉnh sửa (rule riêng).
    */
   static assertCanWriteSession(session: SessionOwnershipShape, actor: FeedbackActor): void {
+    const isManagerOverride = actor.roles.includes('ACADEMIC') || actor.roles.includes('ROOT');
+    if (isManagerOverride) {
+      return;
+    }
+
     const isTeacher = actor.roles.includes('TEACHER');
     if (!isTeacher) {
-      throw AppError.forbidden('Chế độ Xem: Quản lý không thể ghi nhận xét/điểm thay giáo viên', {
+      throw AppError.forbidden('Chế độ Xem: Không có quyền ghi nhận xét/điểm', {
         code: 'FEEDBACK_POLICY/MANAGER_READONLY',
         sessionId: session.id,
         actorId: actor.userId,

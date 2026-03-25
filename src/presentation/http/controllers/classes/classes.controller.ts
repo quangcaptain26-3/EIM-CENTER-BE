@@ -1,13 +1,15 @@
 import { Request, Response, NextFunction, Router } from "express";
+import { z } from "zod";
 import {
   createClassBodySchema,
   listClassesQuerySchema,
   updateClassBodySchema,
   addEnrollmentBodySchema,
+  closeClassBodySchema,
 } from "../../../../application/classes/dtos/class.dto";
 import { promoteClassBodySchema } from "../../../../application/classes/dtos/promotion.dto";
 import { upsertSchedulesBodySchema } from "../../../../application/classes/dtos/schedule.dto";
-import { assignStaffBodySchema } from "../../../../application/classes/dtos/staff.dto";
+import { assignStaffBodySchema, changeMainTeacherBodySchema } from "../../../../application/classes/dtos/staff.dto";
 import { validate } from "../../middlewares/validate.middleware";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { requireRoles } from "../../middlewares/rbac.middleware";
@@ -36,7 +38,7 @@ classesRouter.use(authMiddleware);
 classesRouter.get(
   "/",
   requireRoles(READ_ROLES),
-  validate(listClassesQuerySchema),
+  validate(z.object({ query: listClassesQuerySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { listClassesUseCase } = req.app.locals.container.classes;
@@ -55,7 +57,7 @@ classesRouter.get(
 classesRouter.post(
   "/",
   requireRoles(WRITE_ROLES),
-  validate(createClassBodySchema),
+  validate(z.object({ body: createClassBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { createClassUseCase } = req.app.locals.container.classes;
@@ -74,7 +76,8 @@ classesRouter.post(
       }
 
       let generatedSessionsCount = 0;
-      if (autoGenerateSessions) {
+      const hasSchedules = Array.isArray(schedules) && schedules.length > 0;
+      if (autoGenerateSessions && hasSchedules) {
         const generated = await generateSessionsUseCase.execute(newClass.id, {
           weeks: generateWeeks,
           untilUnitNo: generateUntilUnitNo,
@@ -131,7 +134,7 @@ classesRouter.get(
 classesRouter.patch(
   "/:id",
   requireRoles(WRITE_ROLES),
-  validate(updateClassBodySchema),
+  validate(z.object({ body: updateClassBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { updateClassUseCase, getClassUseCase } = req.app.locals.container.classes;
@@ -171,7 +174,7 @@ classesRouter.patch(
 classesRouter.put(
   "/:id/schedules",
   requireRoles(WRITE_ROLES),
-  validate(upsertSchedulesBodySchema),
+  validate(z.object({ body: upsertSchedulesBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { upsertSchedulesUseCase } = req.app.locals.container.classes;
@@ -223,13 +226,49 @@ classesRouter.get(
 );
 
 // ============================================
+// [PUT] /classes/:id/main-teacher
+// Đổi giáo viên chính dài hạn (từ ngày effectiveFrom trở đi). Cập nhật future sessions.
+// ============================================
+classesRouter.put(
+  "/:id/main-teacher",
+  requireRoles(WRITE_ROLES),
+  validate(z.object({ body: changeMainTeacherBodySchema })),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { changeMainTeacherUseCase, getClassUseCase } = req.app.locals.container.classes;
+      const { auditWriter, notificationRepo } = req.app.locals.container.system;
+      const body = (req.body ?? {}) as { userId: string; effectiveFrom?: string };
+      const result = await changeMainTeacherUseCase.execute(req.params.id, body);
+
+      await auditWriter.write(req.user?.userId, "CLASS_MAIN_TEACHER_CHANGE", "class_staff", result.staff.id, {
+        classId: req.params.id,
+        userId: result.staff.userId,
+        effectiveFrom: body.effectiveFrom ?? new Date().toISOString().slice(0, 10),
+        sessionsUpdated: result.sessionsUpdated,
+      });
+
+      const klass = await getClassUseCase.execute(req.params.id);
+      await notificationRepo.create({
+        userId: result.staff.userId,
+        title: "Bạn được phân công làm giáo viên chính",
+        body: `Bạn đã được phân công làm giáo viên chính lớp ${klass.name} (${klass.code}). Có ${result.sessionsUpdated} buổi học được cập nhật.`,
+      });
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
 // [POST] /classes/:id/staff
 // Phân công staff/giáo viên
 // ============================================
 classesRouter.post(
   "/:id/staff",
   requireRoles(WRITE_ROLES),
-  validate(assignStaffBodySchema),
+  validate(z.object({ body: assignStaffBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { assignStaffUseCase } = req.app.locals.container.classes;
@@ -256,7 +295,7 @@ classesRouter.post(
 classesRouter.delete(
   "/:id/staff",
   requireRoles(WRITE_ROLES),
-  validate(assignStaffBodySchema),
+  validate(z.object({ body: assignStaffBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { removeStaffUseCase } = req.app.locals.container.classes;
@@ -302,7 +341,7 @@ classesRouter.get(
 classesRouter.post(
   "/:id/enrollments",
   requireRoles(WRITE_ROLES), // ACADEMIC, ROOT
-  validate(addEnrollmentBodySchema),
+  validate(z.object({ body: addEnrollmentBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { addEnrollmentToClassUseCase } = req.app.locals.container.classes;
@@ -326,16 +365,20 @@ classesRouter.post(
 
 // ============================================
 // [POST] /classes/:id/close
-// Đóng lớp học
+// Đóng lớp học — option completeRemainingEnrollments: chuyển enrollment sang GRADUATED
 // ============================================
 classesRouter.post(
   "/:id/close",
   requireRoles(WRITE_ROLES),
+  validate(z.object({ body: closeClassBodySchema.optional().default({ completeRemainingEnrollments: true }) })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { closeClassUseCase } = req.app.locals.container.classes;
       const actorUserId = req.user?.userId;
-      const updatedClass = await closeClassUseCase.execute(req.params.id, actorUserId);
+      const body = (req.body ?? {}) as { completeRemainingEnrollments?: boolean };
+      const updatedClass = await closeClassUseCase.execute(req.params.id, actorUserId, {
+        completeRemainingEnrollments: body.completeRemainingEnrollments,
+      });
       res.json({ success: true, data: updatedClass });
     } catch (error) {
       next(error);
@@ -350,7 +393,7 @@ classesRouter.post(
 classesRouter.post(
   "/:id/promotion",
   requireRoles(WRITE_ROLES),
-  validate(promoteClassBodySchema),
+  validate(z.object({ body: promoteClassBodySchema })),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { promoteClassUseCase } = req.app.locals.container.classes;

@@ -11,6 +11,7 @@ const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "secret";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "secret";
 const JWT_ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
+const ATTENDANCE_WARNING_THRESHOLD = parseInt(process.env.ATTENDANCE_WARNING_THRESHOLD || "3", 10);
 
 // Bắt lỗi nếu thiếu các biến môi trường quan trọng
 if (!PORT) {
@@ -28,4 +29,5 @@ export const env = {
   JWT_REFRESH_SECRET,
   JWT_ACCESS_EXPIRES_IN,
   JWT_REFRESH_EXPIRES_IN,
+  ATTENDANCE_WARNING_THRESHOLD,
 };

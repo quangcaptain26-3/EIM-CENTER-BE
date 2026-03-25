@@ -1,3 +1,5 @@
+-- Mô tả: Bổ sung cột feedback/scores (language_usage, note) cho session_feedback và session_scores.
+
 SET client_encoding = 'UTF8';
 
 -- Bổ sung các cột đã có trong Excel contract nhưng thiếu trong DB:

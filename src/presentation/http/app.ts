@@ -22,7 +22,8 @@ app.use(express.json());
 // Load specs của OpenAPI
 const swaggerSpec = buildOpenApiSpec();
 
-// Cấu hình Swagger UI (giao diện docs) và JSON spec endpoint
+// Cấu hình Swagger UI (giao diện docs) — /api-docs và /docs đều dùng được
+app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerSpec));
 app.use('/docs', swaggerUI.serve, swaggerUI.setup(swaggerSpec));
 app.get('/docs-json', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');

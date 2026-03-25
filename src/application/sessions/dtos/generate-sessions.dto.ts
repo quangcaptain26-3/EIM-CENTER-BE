@@ -14,6 +14,11 @@ export const GenerateSessionsSchema = z.object({
     .optional(),
   weeks: z.number().int().positive().optional(),
   untilUnitNo: z.number().int().positive().optional(),
+  /**
+   * Nếu true: xóa toàn bộ sessions hiện có của lớp rồi sinh lại (mất feedback gắn session).
+   * Nếu false/undefined và lớp đã có sessions → lỗi conflict.
+   */
+  replaceExisting: z.boolean().optional(),
 });
 
 export type GenerateSessionsBody = z.infer<typeof GenerateSessionsSchema>;

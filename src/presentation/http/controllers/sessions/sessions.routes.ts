@@ -4,7 +4,7 @@ import { buildContainer } from "../../../../bootstrap/container";
 import { validate } from "../../middlewares/validate.middleware";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { requireRoles } from "../../middlewares/rbac.middleware";
-import { enforceTeacherOwnsSession, enforceTeacherSelfParam } from "../../middlewares/teacher-idor.middleware";
+import { enforceTeacherOwnsSession, enforceTeacherCanReadSession, enforceTeacherSelfParam } from "../../middlewares/teacher-idor.middleware";
 import { GenerateSessionsSchema } from "../../../../application/sessions/dtos/generate-sessions.dto";
 import { UpdateSessionSchema } from "../../../../application/sessions/dtos/update-session.dto";
 
@@ -46,12 +46,12 @@ export const classSessionsRouter = router;
  */
 const sessionRouter = Router();
 
-// Lấy chi tiết buổi học
+// Lấy chi tiết buổi học — Teacher dùng rule đọc (xem tất cả session lớp mình)
 sessionRouter.get(
   "/:sessionId",
   authMiddleware,
   requireRoles(["ROOT", "DIRECTOR", "ACADEMIC", "SALES", "ACCOUNTANT", "TEACHER"]),
-  enforceTeacherOwnsSession,
+  enforceTeacherCanReadSession,
   controller.getSession
 );
 

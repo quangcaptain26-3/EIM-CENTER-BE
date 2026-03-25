@@ -3,7 +3,7 @@ import { FeedbackController } from "./feedback.controller";
 import { authMiddleware } from "../../middlewares/auth.middleware";
 import { requireRoles } from "../../middlewares/rbac.middleware";
 import { validate } from "../../middlewares/validate.middleware";
-import { enforceTeacherOwnsSession } from "../../middlewares/teacher-idor.middleware";
+import { enforceTeacherOwnsSession, enforceTeacherCanReadSession } from "../../middlewares/teacher-idor.middleware";
 import { z } from "zod";
 import { UpsertFeedbackBodySchema } from "../../../../application/feedback/dtos/feedback.dto";
 import { UpsertScoresBodySchema, UpsertScoreItemSchema } from "../../../../application/feedback/dtos/score.dto";
@@ -35,12 +35,12 @@ const controller = new FeedbackController();
 // SESSION FEEDBACK & SCORES ROUTES (Mounted on /api/v1/sessions/:sessionId)
 // ==========================================
 
-// GET /sessions/:sessionId/feedback
+// GET /sessions/:sessionId/feedback — Teacher xem tất cả feedback lớp mình (kể cả buổi trước)
 sessionsFeedbackRouter.get(
   "/feedback",
   authMiddleware,
   requireRoles(["DIRECTOR", "ACADEMIC", "ACCOUNTANT", "TEACHER"]),
-  enforceTeacherOwnsSession,
+  enforceTeacherCanReadSession,
   controller.getSessionFeedback.bind(controller)
 );
 
@@ -49,7 +49,7 @@ sessionsFeedbackRouter.get(
   "/feedback/template",
   authMiddleware,
   requireRoles(["DIRECTOR", "ACADEMIC", "TEACHER"]),
-  enforceTeacherOwnsSession,
+  enforceTeacherCanReadSession,
   controller.downloadSessionFeedbackTemplate.bind(controller)
 );
 
@@ -57,8 +57,8 @@ sessionsFeedbackRouter.get(
 sessionsFeedbackRouter.post(
   "/feedback/upsert",
   authMiddleware,
-  // Manager read-only: chỉ TEACHER mới được ghi feedback
-  requireRoles(["TEACHER"]),
+  // TEACHER (ownership + deadline) | ACADEMIC/ROOT (manager override, bỏ qua deadline)
+  requireRoles(["TEACHER", "ACADEMIC", "ROOT"]),
   enforceTeacherOwnsSession,
   validate(z.object({ body: UpsertFeedbackBodySchema })),
   controller.upsertSessionFeedback.bind(controller)
@@ -68,8 +68,8 @@ sessionsFeedbackRouter.post(
 sessionsFeedbackRouter.post(
   "/feedback/import",
   authMiddleware,
-  // Manager read-only: chỉ TEACHER mới được import feedback
-  requireRoles(["TEACHER"]),
+  // TEACHER (ownership + deadline) | ACADEMIC/ROOT (manager override)
+  requireRoles(["TEACHER", "ACADEMIC", "ROOT"]),
   enforceTeacherOwnsSession,
   upload.single("file"),
   controller.importFeedbackBySession.bind(controller)
@@ -79,8 +79,8 @@ sessionsFeedbackRouter.post(
 sessionsFeedbackRouter.post(
   "/scores/upsert",
   authMiddleware,
-  // Manager read-only: chỉ TEACHER mới được nhập điểm
-  requireRoles(["TEACHER"]),
+  // TEACHER (ownership + deadline) | ACADEMIC/ROOT (manager override)
+  requireRoles(["TEACHER", "ACADEMIC", "ROOT"]),
   enforceTeacherOwnsSession,
   validate(z.object({ body: UpsertScoresBodySchema })),
   controller.upsertSessionScores.bind(controller)

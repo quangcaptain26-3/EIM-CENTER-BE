@@ -87,17 +87,19 @@ export class FeedbackController {
 
     const container = buildContainer();
     const result = await container.feedback.upsertSessionFeedbackUseCase.execute(sessionId as string, body, actor);
-    
-    // Audit: chỉ log số lượng affected, không log comment chi tiết
+
+    const isManagerOverride = actor.roles.includes("ACADEMIC") || actor.roles.includes("ROOT");
     const audit = FeedbackAuditBuilder.buildManualFeedbackUpsert({
       actorId: actor.userId,
       actorRole: resolveActorRole(actor.roles),
       sessionId,
       affectedStudentCount: body.items.length,
+      sessionDate: result.sessionDate,
+      overrideDeadline: isManagerOverride,
     });
     await container.system.auditWriter.write(audit.actorUserId, audit.action, audit.entity, audit.entityId, audit.meta);
 
-    return res.json({ success: true, data: result });
+    return res.json({ success: true, data: result.data });
   }
 
   /**
@@ -126,10 +128,10 @@ export class FeedbackController {
     const result = await container.feedback.importSessionFeedbackUseCase.execute(
       sessionId,
       req.file.buffer,
-      actor
+      actor,
     );
 
-    // Audit: không log raw file, không log chi tiết từng dòng lỗi
+    const isManagerOverride = actor.roles.includes("ACADEMIC") || actor.roles.includes("ROOT");
     const audit = FeedbackAuditBuilder.buildImport({
       actorId: actor.userId,
       actorRole: resolveActorRole(actor.roles),
@@ -137,9 +139,11 @@ export class FeedbackController {
       processedCount: result.processedCount,
       successCount: result.successCount,
       errorCount: result.errorCount,
+      sessionDate: result.sessionDate,
+      overrideDeadline: isManagerOverride,
     });
     await container.system.auditWriter.write(audit.actorUserId, audit.action, audit.entity, audit.entityId, audit.meta);
-    
+
     return res.json({ success: true, data: result });
   }
 
@@ -402,17 +406,19 @@ export class FeedbackController {
 
     const container = buildContainer();
     const result = await container.feedback.upsertSessionScoresUseCase.execute(sessionId as string, body, actor);
-    
-    // Audit: không log chi tiết điểm từng học viên
+
+    const isManagerOverride = actor.roles.includes("ACADEMIC") || actor.roles.includes("ROOT");
     const audit = FeedbackAuditBuilder.buildManualScoreUpsert({
       actorId: actor.userId,
       actorRole: resolveActorRole(actor.roles),
       sessionId,
       affectedStudentCount: body.items.length,
+      sessionDate: result.sessionDate,
+      overrideDeadline: isManagerOverride,
     });
     await container.system.auditWriter.write(audit.actorUserId, audit.action, audit.entity, audit.entityId, audit.meta);
 
-    return res.json({ success: true, data: result });
+    return res.json({ success: true, data: result.data });
   }
 
   /**

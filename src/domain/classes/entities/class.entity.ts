@@ -14,6 +14,8 @@ export interface Class {
   capacity: number; // default: 16
   /** Sĩ số hiện tại (đếm enrollments ACTIVE) — chỉ có trong list/enriched queries */
   currentSize?: number;
+  /** Số chỗ còn trống = capacity - currentSize — dùng cho search lớp còn chỗ (sau convert trial) */
+  remainingCapacity?: number;
   startDate: Date | string; // DATE type in DB (e.g. "2024-01-01")
   status: ClassStatus; // ACTIVE, PAUSED, CLOSED
   createdAt: Date;

@@ -19,14 +19,29 @@ export class UpdateInvoiceStatusUseCase {
 
   async execute(id: string, body: UpdateInvoiceStatusBody) {
     const invoice = await this.invoiceRepo.findById(id);
-    if (!invoice) throw new Error("Không tìm thấy hóa đơn");
+    if (!invoice) {
+      throw AppError.notFound("Không tìm thấy hóa đơn", { code: "FINANCE/INVOICE_NOT_FOUND", invoiceId: id });
+    }
 
     const toStatus = body.status as InvoiceStatus;
 
-    // Kiểm tra luồng trạng thái hợp lệ
+    // Kiểm tra luồng trạng thái hợp lệ — chặn PAID/CANCELED chuyển sang bất kỳ status nào
     if (!canChangeInvoiceStatus(invoice.status, toStatus)) {
-      throw new Error(
-        `Không thể chuyển trạng thái hóa đơn từ "${invoice.status}" sang "${toStatus}"`
+      if (invoice.status === "PAID") {
+        throw AppError.badRequest("Hóa đơn đã thanh toán đủ, không thể thay đổi trạng thái", {
+          code: "FINANCE/INVOICE_ALREADY_PAID",
+          invoiceId: id,
+        });
+      }
+      if (invoice.status === "CANCELED") {
+        throw AppError.badRequest("Hóa đơn đã hủy, không thể thay đổi trạng thái", {
+          code: "FINANCE/INVOICE_ALREADY_CANCELED",
+          invoiceId: id,
+        });
+      }
+      throw AppError.badRequest(
+        `Không thể chuyển trạng thái hóa đơn từ "${invoice.status}" sang "${toStatus}"`,
+        { code: "FINANCE/INVOICE_STATUS_TRANSITION_INVALID", invoiceId: id },
       );
     }
 

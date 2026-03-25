@@ -28,6 +28,11 @@ export class RosterPgRepo implements RosterRepoPort {
     }));
   }
 
+  /**
+   * Roster tại thời điểm session.
+   * Bao gồm cả enrollment đã ended (TRANSFERRED/GRADUATED/DROPPED) khi sessionDate nằm trong khoảng
+   * start_date..end_date — tránh mất roster lịch sử khi học viên đã chuyển lớp.
+   */
   async listRosterAtDate(classId: string, sessionDate: Date): Promise<RosterStudent[]> {
     const query = `
       SELECT 
@@ -40,7 +45,10 @@ export class RosterPgRepo implements RosterRepoPort {
         e.class_id = $1
         AND e.start_date <= $2
         AND (e.end_date IS NULL OR e.end_date >= $2)
-        AND e.status IN ('ACTIVE', 'PAUSED')
+        AND (
+          e.status IN ('ACTIVE', 'PAUSED')
+          OR (e.status IN ('TRANSFERRED', 'GRADUATED', 'DROPPED') AND e.end_date >= $2)
+        )
       ORDER BY s.full_name ASC
     `;
 

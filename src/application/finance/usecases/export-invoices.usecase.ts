@@ -13,6 +13,7 @@ export class ExportInvoicesUseCase {
 
   /**
    * Export hóa đơn trong khoảng thời gian (kèm theo các filter optional)
+   * R6: Mặc định chỉ xuất invoice của enrollment ACTIVE/PAUSED; set includeTerminatedEnrollments=true để bao gồm cả đã kết thúc.
    */
   async execute(params: {
     fromDate: string;
@@ -20,6 +21,7 @@ export class ExportInvoicesUseCase {
     status?: string;
     enrollmentId?: string;
     overdue?: boolean;
+    includeTerminatedEnrollments?: boolean;
   }): Promise<Buffer> {
     
     // Lấy dữ liệu từ Repo đã join sẵn student & payment
@@ -29,6 +31,7 @@ export class ExportInvoicesUseCase {
       status: params.status,
       enrollmentId: params.enrollmentId,
       overdue: params.overdue,
+      includeTerminatedEnrollments: params.includeTerminatedEnrollments,
       limit: this.MAX_EXPORT_ROWS + 1,
     });
 
@@ -49,6 +52,7 @@ export class ExportInvoicesUseCase {
     status?: string;
     enrollmentId?: string;
     overdue?: boolean;
+    includeTerminatedEnrollments?: boolean;
   }, writable: Writable): Promise<void> {
     const rawData = await this.invoiceRepo.listForExport({
       fromDate: params.fromDate,
@@ -56,6 +60,7 @@ export class ExportInvoicesUseCase {
       status: params.status,
       enrollmentId: params.enrollmentId,
       overdue: params.overdue,
+      includeTerminatedEnrollments: params.includeTerminatedEnrollments,
       limit: this.MAX_EXPORT_ROWS + 1,
     });
 

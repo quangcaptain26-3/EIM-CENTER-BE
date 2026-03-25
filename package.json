@@ -9,6 +9,7 @@
     "db:psql:migrate": "psql \"%DATABASE_URL%\" -f database/scripts/03_run_migrations.sql",
     "db:psql:seed": "psql \"%DATABASE_URL%\" -f database/scripts/04_run_seeds.sql",
     "db:psql:smoke": "psql \"%DATABASE_URL%\" -f database/scripts/05_smoke_queries.sql",
+    "db:psql:fix-passwords": "psql \"%DATABASE_URL%\" -f database/scripts/fix_director_sales_password.sql",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down"
   },

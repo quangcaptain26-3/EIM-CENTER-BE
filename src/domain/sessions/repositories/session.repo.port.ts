@@ -1,5 +1,5 @@
 // src/domain/sessions/repositories/session.repo.port.ts
-import { Session, SessionType } from "../entities/session.entity";
+import { Session, SessionStatus, SessionType } from "../entities/session.entity";
 
 export interface CreateSessionInput {
   classId: string;
@@ -13,6 +13,7 @@ export interface CreateSessionInput {
 }
 
 export interface UpdateSessionInput {
+  sessionStatus?: SessionStatus;
   unitNo?: number;
   lessonNo?: number;
   lessonPattern?: string | null;
@@ -38,7 +39,19 @@ export interface ISessionRepository {
   /** Cập nhật thông tin buổi học */
   update(sessionId: string, patch: UpdateSessionInput): Promise<Session>;
   /** Đổi lịch buổi học */
-  reschedule(sessionId: string, toDate: Date, note?: string): Promise<Session>;
+  reschedule(sessionId: string, toDate: Date, note?: string, changedBy?: string): Promise<Session>;
   /** Kiểm tra xem ngày đó lớp đã có buổi học chưa */
   existsByClassAndDate(classId: string, date: Date): Promise<boolean>;
+  /** Xóa toàn bộ buổi học của một lớp (dùng khi replace generate). Trả về số dòng đã xóa. */
+  deleteByClassId(classId: string): Promise<number>;
+  /**
+   * Cập nhật main_teacher_id cho các buổi có session_date >= fromDate.
+   * Dùng cho đổi giáo viên dài hạn (từ ngày X trở đi).
+   * Trả về số buổi đã cập nhật.
+   */
+  updateMainTeacherForSessionsFromDate(
+    classId: string,
+    fromDate: Date,
+    mainTeacherId: string | null
+  ): Promise<number>;
 }

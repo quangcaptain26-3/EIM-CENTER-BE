@@ -4,6 +4,9 @@ import { CreateFeePlanBodySchema, UpdateFeePlanBodySchema } from "../../../../ap
 import { CreateInvoiceBodySchema, UpdateInvoiceStatusBodySchema, ListInvoicesQuerySchema } from "../../../../application/finance/dtos/invoice.dto";
 import { CreatePaymentBodySchema } from "../../../../application/finance/dtos/payment.dto";
 import { StudentFinanceQuerySchema } from "../../../../application/finance/dtos/student-finance.dto";
+import {
+  ListStudentPaymentStatusQuerySchema,
+} from "../../../../application/finance/dtos/student-payment-status.dto";
 
 /**
  * FinanceController: Xử lý các nghiệp vụ tài chính
@@ -150,6 +153,10 @@ export class FinanceController {
     const enrollmentId = req.query.enrollmentId as unknown as string | undefined;
     const overdue =
       typeof req.query.overdue === "string" ? req.query.overdue.toString() === "true" : undefined;
+    const includeTerminatedEnrollments =
+      typeof req.query.includeTerminatedEnrollments === "string"
+        ? req.query.includeTerminatedEnrollments === "true"
+        : false;
 
     if (!fromDate || !toDate) {
       return res.status(400).json({ success: false, error: 'Thiếu tham số fromDate hoặc toDate' });
@@ -157,7 +164,6 @@ export class FinanceController {
 
     const container = buildContainer();
     // Audit: export tài chính là hành động nhạy cảm.
-    // Chỉ log metadata bộ lọc + actor để truy vết, không log dữ liệu hóa đơn.
     await container.system.auditWriter.write(
       req.user?.userId,
       "FINANCE_INVOICE_EXPORT",
@@ -169,6 +175,7 @@ export class FinanceController {
         status: status ?? null,
         enrollmentId: enrollmentId ?? null,
         overdue: typeof overdue === "boolean" ? overdue : null,
+        includeTerminatedEnrollments,
       }
     );
 
@@ -182,6 +189,7 @@ export class FinanceController {
         status,
         enrollmentId,
         overdue,
+        includeTerminatedEnrollments,
       },
       res,
     );
@@ -364,6 +372,62 @@ export class FinanceController {
   // ==========================================
   // STUDENT FINANCE SUMMARY
   // ==========================================
+
+  // ==========================================
+  // DANH SÁCH TRẠNG THÁI THANH TOÁN HỌC SINH
+  // ==========================================
+
+  /**
+   * GET /finance/student-payment-status
+   * Danh sách học sinh đã đóng/chưa đóng theo enrollment + invoice.
+   * Logic: dựa trên enrollment, invoice, payment; không gộp theo student thuần.
+   */
+  async listStudentPaymentStatus(req: Request, res: Response) {
+    const query = ListStudentPaymentStatusQuerySchema.parse(req.query);
+    const container = buildContainer();
+    const data = await container.finance.listStudentPaymentStatusUseCase.execute(query);
+    return res.json({ success: true, data });
+  }
+
+  /**
+   * GET /finance/student-payment-status/export
+   * Xuất danh sách trạng thái thanh toán học sinh ra Excel.
+   * Cùng filter và logic với list.
+   */
+  async exportStudentPaymentStatus(req: Request, res: Response) {
+    const raw = ListStudentPaymentStatusQuerySchema.pick({
+      paymentStatus: true,
+      classId: true,
+      programId: true,
+      keyword: true,
+    }).parse(req.query);
+
+    const query = {
+      paymentStatus: raw.paymentStatus as "paid" | "unpaid" | "partial" | "overdue" | "no_invoice" | undefined,
+      classId: raw.classId,
+      programId: raw.programId,
+      keyword: raw.keyword,
+    };
+
+    const container = buildContainer();
+    await container.system.auditWriter.write(
+      req.user?.userId,
+      "FINANCE_STUDENT_PAYMENT_EXPORT",
+      "student_payment_status",
+      undefined,
+      { ...query }
+    );
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    const filename = `TrangThaiThanhToan_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await container.finance.exportStudentPaymentStatusUseCase.stream(query, res);
+    return res.end();
+  }
 
   /**
    * GET /students/:id/finance

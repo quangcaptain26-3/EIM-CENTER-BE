@@ -14,6 +14,7 @@ export const ClassMapper = {
       room: entity.room,
       capacity: entity.capacity,
       currentSize: entity.currentSize ?? 0,
+      remainingCapacity: entity.remainingCapacity ?? (entity.capacity - (entity.currentSize ?? 0)),
       startDate: entity.startDate,
       status: entity.status,
       createdAt: entity.createdAt.toISOString(),

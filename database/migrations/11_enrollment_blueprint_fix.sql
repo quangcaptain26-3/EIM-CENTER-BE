@@ -1,3 +1,5 @@
+-- Mô tả: Cho phép enrollments.class_id NULL và bổ sung trace trên enrollment_history (changed_by, from/to class).
+
 SET client_encoding = 'UTF8';
 
 -- FIX 3 (Blueprint tối thiểu):

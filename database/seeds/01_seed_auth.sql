@@ -1,7 +1,17 @@
--- File: 00_seed_roles_permissions.sql
+-- File: 01_seed_auth.sql
 -- Mục đích: Khởi tạo dữ liệu cơ bản cho Auth (Roles, Permissions, Users, User_Roles)
 -- Phụ thuộc: none
--- Password demo: Demo@123456
+--
+-- DEMO CREDENTIALS (mật khẩu chung: Eim@2024)
+-- | Role      | Email               | Mật khẩu  |
+-- |-----------|---------------------|-----------|
+-- | Root      | root@eim.edu.vn     | Eim@2024  |
+-- | Giám đốc  | director@eim.edu.vn | Eim@2024  |
+-- | Học vụ    | academic@eim.edu.vn | Eim@2024  |
+-- | Sales     | sales@eim.edu.vn    | Eim@2024  |
+-- | Kế toán   | accountant@eim.edu.vn | Eim@2024 |
+-- | Teacher   | teacher@eim.edu.vn  | Eim@2024  |
+-- | Teacher 2 | teacher2@eim.edu.vn | Eim@2024  |
 
 SET client_encoding = 'UTF8';
 
@@ -60,18 +70,26 @@ SELECT r.id, p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN ('AUTH_
 INSERT INTO auth_role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN ('AUTH_ME', 'STUDENT_READ', 'FEEDBACK_WRITE') WHERE r.code = 'TEACHER' ON CONFLICT DO NOTHING;
 
--- 5. Tạo Users demo
+-- 5. Tạo Users demo — mỗi role có ít nhất 1 user để demo
+-- Email / Mật khẩu: Eim@2024 (dùng chung cho tất cả)
 INSERT INTO auth_users (id, email, password_hash, full_name, status) VALUES
-  ('297fab7b-efb2-4324-87ec-a0789d72223c', 'root@eim.edu.vn',       '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Nguyễn Quản Trị (Root)',        'ACTIVE'),
-  ('a9cf4f09-6d4d-47fd-a332-609cc2079f39', 'director@eim.edu.vn',   '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Trần Giám Đốc (Director)',      'ACTIVE'),
-  ('80eb7da6-ea5d-4dd3-9da8-2135bcdb1fe9', 'academic@eim.edu.vn',   '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Lê Học Vụ (Academic)',          'ACTIVE'),
-  ('27bd7161-c8c9-4d8e-832a-b9f6c704b4bd', 'sales@eim.edu.vn',      '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Phạm Sales (Sales)',            'ACTIVE'),
-  ('ec7e7bee-f0c9-4ae5-adb4-611ab24a419f', 'accountant@eim.edu.vn', '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Hoàng Kế Toán (Accountant)',    'ACTIVE'),
-  ('6e374495-8f2c-416f-96e2-b6fd525f408c', 'teacher@eim.edu.vn',    '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Vũ Giáo Viên (Teacher)',        'ACTIVE'),
-  ('f92d2fb6-dbe6-4ba4-8111-cc847c046ecc', 'teacher2@eim.edu.vn',   '$2b$10$X7w7BD3ShIuTv/d9d.3RBuIwGFNSuZuwVw6qdrFpInrc4sCaIq4Fq', 'Đỗ Thị Lan (Teacher 2)',        'ACTIVE')
+  -- root@eim.edu.vn / Eim@2024 — Root (Quản trị viên)
+  ('297fab7b-efb2-4324-87ec-a0789d72223c', 'root@eim.edu.vn',       '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Nguyễn Quản Trị (Root)',        'ACTIVE'),
+  -- director@eim.edu.vn / Eim@2024 — Giám đốc
+  ('a9cf4f09-6d4d-47fd-a332-609cc2079f39', 'director@eim.edu.vn',   '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Trần Giám Đốc (Director)',      'ACTIVE'),
+  -- academic@eim.edu.vn / Eim@2024 — Học vụ
+  ('80eb7da6-ea5d-4dd3-9da8-2135bcdb1fe9', 'academic@eim.edu.vn',   '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Lê Học Vụ (Academic)',          'ACTIVE'),
+  -- sales@eim.edu.vn / Eim@2024 — Sales
+  ('27bd7161-c8c9-4d8e-832a-b9f6c704b4bd', 'sales@eim.edu.vn',      '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Phạm Sales (Sales)',            'ACTIVE'),
+  -- accountant@eim.edu.vn / Eim@2024 — Kế toán
+  ('ec7e7bee-f0c9-4ae5-adb4-611ab24a419f', 'accountant@eim.edu.vn', '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Hoàng Kế Toán (Accountant)',    'ACTIVE'),
+  -- teacher@eim.edu.vn / Eim@2024 — Teacher (giáo viên chính)
+  ('6e374495-8f2c-416f-96e2-b6fd525f408c', 'teacher@eim.edu.vn',    '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Vũ Giáo Viên (Teacher)',        'ACTIVE'),
+  -- teacher2@eim.edu.vn / Eim@2024 — Teacher (trợ giảng)
+  ('f92d2fb6-dbe6-4ba4-8111-cc847c046ecc', 'teacher2@eim.edu.vn',   '$2b$10$YAnFetGk6x4Ex72/OXu4X.Sv3K1gmjc.gIKZ/ycP5sB8T1UMnM8c.', 'Đỗ Thị Lan (Teacher 2)',        'ACTIVE')
 ON CONFLICT (id) DO NOTHING;
 
--- 6. Gán Role cho Users
+-- 6. Gán Role cho Users (1 user 1 role, đủ 6 roles)
 INSERT INTO auth_user_roles (user_id, role_id) VALUES
   ('297fab7b-efb2-4324-87ec-a0789d72223c', '377f8292-329f-4bf5-acde-54f49375e518'), -- root
   ('a9cf4f09-6d4d-47fd-a332-609cc2079f39', '0498f2ee-1ab1-4492-96de-2518b31ae222'), -- director
@@ -80,7 +98,7 @@ INSERT INTO auth_user_roles (user_id, role_id) VALUES
   ('ec7e7bee-f0c9-4ae5-adb4-611ab24a419f', 'e85efefa-0fa6-403f-869a-183e749913a2'), -- accountant
   ('6e374495-8f2c-416f-96e2-b6fd525f408c', '1a3caf1d-d46e-446f-9030-310dbfb6b447'), -- teacher
   ('f92d2fb6-dbe6-4ba4-8111-cc847c046ecc', '1a3caf1d-d46e-446f-9030-310dbfb6b447')  -- teacher2
-ON CONFLICT DO NOTHING;
+ON CONFLICT (user_id, role_id) DO NOTHING;
 
 -- Verify
 SELECT 'auth_roles' AS tbl, COUNT(*)::int AS rows FROM auth_roles

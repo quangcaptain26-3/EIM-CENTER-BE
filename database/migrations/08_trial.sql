@@ -1,3 +1,5 @@
+-- Mô tả: Tạo bảng trial (leads, schedules, conversions) — FK tới auth_users, classes, students, enrollments.
+
 -- Tạo extension pgcrypto nếu chưa có
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

@@ -6,12 +6,18 @@
 export type SessionType = "NORMAL" | "TEST" | "MIDTERM" | "FINAL";
 
 /**
+ * Trạng thái buổi học
+ */
+export type SessionStatus = "SCHEDULED" | "CANCELLED" | "COMPLETED" | "MAKEUP";
+
+/**
  * Entity Buổi học
  */
 export interface Session {
   id: string;
   classId: string;
   sessionDate: Date;
+  sessionStatus: SessionStatus;
   unitNo: number;
   lessonNo: number;
   /**
@@ -35,5 +41,6 @@ export interface SessionReschedule {
   fromDate: Date;
   toDate: Date;
   note?: string | null;
+  changedBy?: string | null;
   changedAt: Date;
 }

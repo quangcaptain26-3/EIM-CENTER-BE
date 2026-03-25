@@ -3,6 +3,7 @@ import type { Writable } from "stream";
 import {
   FEEDBACK_EXCEL_COLUMNS,
   FEEDBACK_EXCEL_SHEET_NAME,
+  FEEDBACK_HEADERS_VI,
   FeedbackExcelColumnKey,
 } from './feedback-excel.contract';
 
@@ -60,6 +61,7 @@ export class FeedbackExporter {
       sheet.addRow(row);
     });
 
+    this.applyAutoWidth(sheet);
     return workbook;
   }
 
@@ -74,6 +76,8 @@ export class FeedbackExporter {
       sheet.addRow(row);
     });
 
+    this.applyAutoWidth(sheet);
+
     const warnings = (rows as any).__warnings as
       | Array<{
           sessionId: string;
@@ -83,27 +87,38 @@ export class FeedbackExporter {
         }>
       | undefined;
     if (warnings && warnings.length > 0) {
-      const warnSheet = workbook.addWorksheet("Warnings");
+      const warnSheet = workbook.addWorksheet("Cảnh báo");
       warnSheet.columns = [
-        { header: "session_id", key: "sessionId", width: 36 },
-        { header: "session_date", key: "sessionDate", width: 14 },
-        { header: "student_id", key: "studentId", width: 36 },
-        { header: "reason", key: "reason", width: 48 },
+        { header: "Mã buổi học", key: "sessionId", width: 36 },
+        { header: "Ngày học", key: "sessionDate", width: 14 },
+        { header: "Mã học viên", key: "studentId", width: 36 },
+        { header: "Lý do", key: "reason", width: 48 },
       ];
       warnSheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
       warnSheet.getRow(1).font = { bold: true };
       warnings.forEach((w) => {
         warnSheet.addRow({
           sessionId: w.sessionId,
-          sessionDate: this.formatIsoDate(w.sessionDate),
+          sessionDate: this.formatDate(w.sessionDate),
           studentId: w.studentId,
           reason: w.reason,
         });
       });
+      this.applyAutoWidth(warnSheet);
     }
 
     return workbook;
   }
+
+  /** autoWidth tối thiểu 15 cho các cột */
+  private applyAutoWidth(sheet: ExcelJS.Worksheet): void {
+    sheet.columns?.forEach((col) => {
+      if (col && typeof col.width === 'number') {
+        col.width = Math.max(col.width, 15);
+      }
+    });
+  }
+
   /**
    * Xuất dữ liệu feedback của một lớp ra file Excel (báo cáo).
    * Giữ nguyên behavior cũ để không ảnh hưởng các luồng hiện tại.
@@ -168,6 +183,7 @@ export class FeedbackExporter {
 
       sumSheet.addRow(rowData);
     });
+    this.applyAutoWidth(sumSheet);
 
     // Sheet 2: Chi tiết
     const detailSheet = workbook.addWorksheet('Chi tiết');
@@ -203,6 +219,7 @@ export class FeedbackExporter {
         });
       });
     });
+    this.applyAutoWidth(detailSheet);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as unknown as Buffer;
@@ -251,7 +268,8 @@ export class FeedbackExporter {
     options: { includeScores: boolean },
   ): Array<Record<FeedbackExcelColumnKey, string | number | null>> {
     return rows.map((row) => {
-      const formattedDate = this.formatIsoDate(row.sessionDate);
+      // Format DD/MM/YYYY thống nhất — importer đã hỗ trợ parse cả hai
+      const formattedDate = this.formatDate(row.sessionDate);
 
       const result: Record<FeedbackExcelColumnKey, string | number | null> = {
         session_id: row.sessionId,
@@ -283,11 +301,13 @@ export class FeedbackExporter {
    * - Đặt header theo đúng canonical order.
    * - Set độ rộng cơ bản, bôi đậm row header và freeze hàng đầu tiên.
    */
+  /** Cấu hình header tiếng Việt cho template — importer chấp nhận cả tiếng Việt và tiếng Anh */
   private configureTemplateHeader(sheet: ExcelJS.Worksheet): void {
     const defaultWidth = 16;
 
-    sheet.columns = FEEDBACK_EXCEL_COLUMNS.map((header) => {
-      const key: FeedbackExcelColumnKey = header;
+    sheet.columns = FEEDBACK_EXCEL_COLUMNS.map((colKey) => {
+      const key: FeedbackExcelColumnKey = colKey;
+      const header = FEEDBACK_HEADERS_VI[key];
       let width = defaultWidth;
 
       if (key === 'session_id' || key === 'student_id') {
@@ -305,24 +325,13 @@ export class FeedbackExporter {
     sheet.getRow(1).font = { bold: true };
   }
 
+  /** Format ngày DD/MM/YYYY thống nhất cho hiển thị và import */
   private formatDate(date: Date): string {
     const d = new Date(date);
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
-  }
-
-  /**
-   * Định dạng ngày theo ISO YYYY-MM-DD để tiện đọc trong Excel
-   * và dễ map ngược lại khi import.
-   */
-  private formatIsoDate(date: Date): string {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   }
 }
 

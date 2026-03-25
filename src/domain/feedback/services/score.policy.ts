@@ -1,6 +1,11 @@
 import { AppError } from '../../../shared/errors/app-error';
 import { ScoreType } from '../entities/session-score.entity';
 
+/**
+ * Teacher chỉ xem điểm của lớp mình: được enforce qua FeedbackPolicy.filterSessionsCanExport
+ * và enforceTeacherOwnsSession/CanReadSession trên các route feedback/scores.
+ */
+
 export type BackendSessionType = 'NORMAL' | 'TEST' | 'MIDTERM' | 'FINAL';
 
 export type NormalizedScoreInput = {

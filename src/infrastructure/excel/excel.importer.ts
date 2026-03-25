@@ -2,6 +2,7 @@ import * as ExcelJS from 'exceljs';
 import {
   FEEDBACK_EXCEL_SHEET_NAME,
   FEEDBACK_EXCEL_COLUMNS,
+  FEEDBACK_HEADERS_VI,
   REQUIRED_FEEDBACK_EXCEL_COLUMNS,
   ATTENDANCE_EXCEL_VALUES,
   HOMEWORK_EXCEL_VALUES,
@@ -195,17 +196,25 @@ export class FeedbackImporter {
 
   /**
    * Xây dựng map header -> index cột từ dòng header đầu tiên.
+   * Chấp nhận cả key tiếng Anh và header tiếng Việt (FEEDBACK_HEADERS_VI).
    */
   private buildHeaderMap(
     headerRow: ExcelJS.Row,
   ): Map<FeedbackExcelColumnKey, number> {
     const map = new Map<FeedbackExcelColumnKey, number>();
+    const viToKey = new Map<string, FeedbackExcelColumnKey>();
+    (FEEDBACK_EXCEL_COLUMNS as readonly string[]).forEach((k) => {
+      viToKey.set(FEEDBACK_HEADERS_VI[k as FeedbackExcelColumnKey], k as FeedbackExcelColumnKey);
+    });
 
     headerRow.eachCell((cell, colNumber) => {
       const rawHeader = (cell.text || '').trim();
-      const normalized = rawHeader as FeedbackExcelColumnKey;
-      if (FEEDBACK_EXCEL_COLUMNS.includes(normalized)) {
-        map.set(normalized, colNumber);
+      if (!rawHeader) return;
+
+      if (FEEDBACK_EXCEL_COLUMNS.includes(rawHeader as FeedbackExcelColumnKey)) {
+        map.set(rawHeader as FeedbackExcelColumnKey, colNumber);
+      } else if (viToKey.has(rawHeader)) {
+        map.set(viToKey.get(rawHeader)!, colNumber);
       }
     });
 
@@ -264,8 +273,8 @@ export class FeedbackImporter {
     const sessionDateStr = raw.session_date ?? '';
     let sessionDate: Date | null = null;
     if (sessionDateStr) {
-      const parsedDate = new Date(sessionDateStr);
-      if (Number.isNaN(parsedDate.getTime())) {
+      const parsedDate = this.parseFlexibleDate(sessionDateStr);
+      if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
         errors.push(
           this.buildRowError(
             rowIndex,
@@ -420,6 +429,26 @@ export class FeedbackImporter {
     };
 
     return { draft, errors };
+  }
+
+  /**
+   * Parse ngày từ Excel hỗ trợ YYYY-MM-DD và DD/MM/YYYY.
+   */
+  private parseFlexibleDate(str: string): Date | null {
+    const s = str.trim();
+    if (!s) return null;
+
+    // DD/MM/YYYY
+    const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+    if (ddmmyyyy) {
+      const [, day, month, year] = ddmmyyyy;
+      // month 0-based
+      const d = new Date(parseInt(year!, 10), parseInt(month!, 10) - 1, parseInt(day!, 10));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    const parsed = new Date(s);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private parseEnumCell<T extends string>(

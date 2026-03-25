@@ -1,4 +1,6 @@
--- migration: 14_enrollment_capacity_guard.sql
+-- Mô tả: Trigger chặn vượt capacity lớp khi INSERT/UPDATE enrollment.
+
+-- migration: 16_enrollment_capacity_guard.sql
 -- Mục tiêu: chống race condition vượt capacity khi add/transfer enrollment vào class.
 -- Chiến lược: dùng trigger BEFORE INSERT/UPDATE trên enrollments.
 -- - Lock row của classes bằng FOR UPDATE để serialize các thao tác cùng class.

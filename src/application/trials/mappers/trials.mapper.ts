@@ -21,6 +21,6 @@ export class TrialsMapper {
   }
 
   static toListResponse(leads: TrialLead[]) {
-    return leads.map(lead => this.toResponse(lead));
+    return leads.map((lead) => this.toResponse(lead, lead.schedule ?? null));
   }
 }

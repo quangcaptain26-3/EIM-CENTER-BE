@@ -406,6 +406,16 @@ export function buildSchemas() {
         type: { type: 'string', enum: ['MAIN', 'TA'], example: 'MAIN' }
       }
     },
+    PromoteClassRequest: {
+      type: 'object',
+      properties: {
+        toClassId: { type: 'string', format: 'uuid', nullable: true, description: 'Lớp đích; null = tạo enrollment chưa xếp lớp' },
+        isRepeat: { type: 'boolean', default: false, description: 'true = học lại cùng level' },
+        note: { type: 'string' },
+        startDate: { type: 'string', format: 'date', description: 'YYYY-MM-DD' },
+        closeSourceClass: { type: 'boolean', default: true, description: 'Đóng lớp nguồn sau khi promote' }
+      }
+    },
     RosterStudent: {
       type: 'object',
       properties: {
@@ -466,11 +476,11 @@ export function buildSchemas() {
     },
     GenerateSessionsRequest: {
       type: 'object',
-      required: ['fromDate'],
       properties: {
-        fromDate: { type: 'string', format: 'date-time', example: '2024-09-01T00:00:00Z' },
+        fromDate: { type: 'string', format: 'date-time', example: '2024-09-01T00:00:00Z', description: 'Deprecated: backend dùng class.startDate' },
         weeks: { type: 'integer', example: 10, description: 'Tuỳ chọn: Số tuần dự kiến của lịch học' },
-        untilUnitNo: { type: 'integer', example: 5, description: 'Tuỳ chọn: Dừng sinh lịch sau khi hoàn tất Unit xác định' }
+        untilUnitNo: { type: 'integer', example: 5, description: 'Tuỳ chọn: Dừng sinh lịch sau khi hoàn tất Unit xác định' },
+        replaceExisting: { type: 'boolean', description: 'true: xóa toàn bộ buổi hiện có rồi sinh lại (mất feedback gắn buổi)' }
       }
     },
     UpdateSessionRequest: {
@@ -478,7 +488,9 @@ export function buildSchemas() {
       properties: {
         sessionDate: { type: 'string', format: 'date-time', example: '2024-09-02T18:00:00Z' },
         note: { type: 'string', example: 'Giáo viên ốm' },
-        coverTeacherId: { type: 'string', format: 'uuid', nullable: true }
+        coverTeacherId: { type: 'string', format: 'uuid', nullable: true },
+        unitNo: { type: 'integer', example: 3 },
+        lessonNo: { type: 'integer', example: 1, description: '0 = buổi khảo thí milestone' }
       }
     },
     

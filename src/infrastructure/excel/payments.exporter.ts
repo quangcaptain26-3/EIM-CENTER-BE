@@ -45,7 +45,7 @@ export class PaymentsExporter {
       { header: "Ngày thanh toán", key: "paid_at", width: 14 },
       { header: "Hạn đóng", key: "due_date", width: 14 },
       { header: "Trạng thái hóa đơn", key: "invoice_status", width: 16 },
-      { header: "Created At", key: "payment_created_at", width: 14 },
+      { header: "Ngày tạo", key: "payment_created_at", width: 14 },
     ];
 
     sheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
@@ -53,7 +53,8 @@ export class PaymentsExporter {
 
     let amountSum = 0;
     payments.forEach((p, idx) => {
-      const paymentAmount = Number(p.payment_amount) || 0;
+      // Làm tròn số tiền VND — tránh float precision (1500000.0000001)
+      const paymentAmount = Math.round(Number(p.payment_amount) || 0);
       amountSum += paymentAmount;
 
       const row = sheet.addRow({
@@ -73,10 +74,17 @@ export class PaymentsExporter {
       row.getCell("payment_amount").numFmt = "#,##0";
     });
 
+    // autoWidth tối thiểu 15 cho các cột
+    sheet.columns?.forEach((col) => {
+      if (col && typeof col.width === "number") {
+        col.width = Math.max(col.width, 15);
+      }
+    });
+
     // Tổng cộng cuối sheet
     const summaryRow = sheet.addRow({
       student_name: "TỔNG CỘNG",
-      payment_amount: amountSum,
+      payment_amount: Math.round(amountSum),
     });
     summaryRow.font = { bold: true };
     summaryRow.getCell("payment_amount").numFmt = "#,##0";

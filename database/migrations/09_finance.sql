@@ -1,3 +1,5 @@
+-- Mô tả: Module tài chính — fee plans, invoices, payments (FK curriculum_programs, enrollments).
+
 -- Up Migration
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

@@ -8,8 +8,11 @@ const normalizeInvoiceStatus = (v: unknown) => {
   if (t.length === 0) return undefined;
   const upper = t.toUpperCase();
   if (upper === "ALL") return undefined;
-  // Common alias (UK spelling) -> internal enum
+  // Alias FE (UK spelling) -> internal enum
   if (upper === "CANCELLED") return "CANCELED";
+  // UNPAID: FE gửi "Chưa thanh toán" -> map sang ISSUED (invoice chờ thanh toán)
+  // DRAFT cũng chưa đóng nhưng ít dùng; ISSUED là trạng thái chính "chờ đóng"
+  if (upper === "UNPAID") return "ISSUED";
   return upper;
 };
 

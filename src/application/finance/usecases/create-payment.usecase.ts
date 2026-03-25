@@ -34,7 +34,7 @@ export class CreatePaymentUseCase {
         [body.invoiceId],
       );
       if (invRes.rows.length === 0) {
-        throw AppError.notFound("Không tìm thấy hóa đơn");
+        throw AppError.notFound("Không tìm thấy hóa đơn", { code: "FINANCE/INVOICE_NOT_FOUND", invoiceId: body.invoiceId });
       }
       const invRow = invRes.rows[0] as {
         id: string;
@@ -44,7 +44,10 @@ export class CreatePaymentUseCase {
       };
 
       if (invRow.status === "CANCELED") {
-        throw AppError.badRequest("Không thể thanh toán cho hóa đơn đã hủy");
+        throw AppError.badRequest("Không thể thanh toán cho hóa đơn đã hủy", {
+          code: "FINANCE/INVOICE_CANCELED",
+          invoiceId: body.invoiceId,
+        });
       }
       if (invRow.status === "PAID") {
         throw AppError.badRequest("Không thể thanh toán thêm cho hóa đơn đã thanh toán đủ", {
@@ -69,13 +72,14 @@ export class CreatePaymentUseCase {
       const remainingAmount = Number(invRow.amount) - paidAmount;
       if (remainingAmount <= 0) {
         throw AppError.badRequest("Hóa đơn đã được thanh toán đủ, không còn số tiền cần thu", {
-          code: "FINANCE/INVOICE_NO_REMAINING",
+          code: "FINANCE/INVOICE_ALREADY_PAID",
           invoiceId: body.invoiceId,
         });
       }
       if (body.amount > remainingAmount) {
         throw AppError.badRequest(
           `Số tiền thanh toán (${body.amount}) vượt quá số tiền còn lại (${remainingAmount})`,
+          { code: "FINANCE/PAYMENT_EXCEEDS_REMAINING", invoiceId: body.invoiceId, remainingAmount },
         );
       }
 

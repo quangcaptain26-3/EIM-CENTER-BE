@@ -174,7 +174,7 @@ trialsRouter.post(
 
       // Audit là lớp phụ trợ, không được làm fail response sau khi convert đã commit.
       try {
-        await auditWriter.write(actorUserId, "TRIAL_CONVERT", "trial", req.params.id, {
+        await auditWriter.write(actorUserId, "convert", "trial_lead", req.params.id, {
           studentId: result.studentId,
           enrollmentId: result.enrollmentId,
           classId: req.body.classId ?? null,

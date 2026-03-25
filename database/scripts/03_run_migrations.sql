@@ -15,36 +15,50 @@
 \echo '✓ Sessions tables'
 \i ../migrations/06_feedback.sql
 \echo '✓ Feedback tables'
-\i ../migrations/07_trial.sql
+\i ../migrations/07_feedback_columns.sql
+\echo '✓ Feedback columns (language_usage, note)'
+\i ../migrations/08_trial.sql
 \echo '✓ Trial tables'
-\i ../migrations/08_finance.sql
+\i ../migrations/09_finance.sql
 \echo '✓ Finance tables'
-\i ../migrations/09_system.sql
+\i ../migrations/10_system.sql
 \echo '✓ System tables'
-\i ../migrations/09_enrollment_blueprint_fix.sql
+\i ../migrations/11_enrollment_blueprint_fix.sql
 \echo '✓ Enrollment blueprint fix'
-\i ../migrations/10_class_staff_semantics_fix.sql
+\i ../migrations/12_class_staff_semantics_fix.sql
 \echo '✓ Class staff semantics fix'
-\i ../migrations/11_split_sales_finance_role.sql
+\i ../migrations/13_split_sales_finance_role.sql
 \echo '✓ Split sales/finance role'
-\i ../migrations/12_add_sessions_lesson_pattern.sql
+\i ../migrations/14_add_sessions_lesson_pattern.sql
 \echo '✓ Sessions lesson pattern'
-\i ../migrations/13_class_staff_main_unique.sql
+\i ../migrations/15_class_staff_main_unique.sql
 \echo '✓ Class staff MAIN unique'
-\i ../migrations/14_enrollment_capacity_guard.sql
+\i ../migrations/16_enrollment_capacity_guard.sql
 \echo '✓ Enrollment capacity guard'
-\i ../migrations/15_journey_integrity_guards.sql
+\i ../migrations/17_journey_integrity_guards.sql
 \echo '✓ Journey integrity guards'
-\i ../migrations/16_finance_feeplan_invoice_snapshot.sql
+\i ../migrations/18_finance_feeplan_invoice_snapshot.sql
 \echo '✓ Finance feeplan snapshot'
-\i ../migrations/17_feedback_export_jobs.sql
+\i ../migrations/19_feedback_export_jobs.sql
 \echo '✓ Feedback export jobs'
-\i ../migrations/18_director_read_only_policy.sql
+\i ../migrations/20_director_read_only_policy.sql
 \echo '✓ Director read-only policy'
-\i ../migrations/21_director_student_read_only_policy.sql
+\i ../migrations/23_director_student_read_only_policy.sql
 \echo '✓ Director student read-only policy'
-\i ../migrations/19_sessions_staff_integrity.sql
+\i ../migrations/21_sessions_staff_integrity.sql
 \echo '✓ Sessions/staff integrity guards'
-\i ../migrations/20_trial_converted_integrity_guard.sql
+\i ../migrations/22_trial_converted_integrity_guard.sql
 \echo '✓ Trial converted integrity guard'
+\i ../migrations/24_session_status_and_reschedule_changed_by.sql
+\echo '✓ Session status + reschedule changed_by'
+\i ../migrations/25_enrollment_one_active_per_student.sql
+\echo '✓ Enrollment one active per student'
+\i ../migrations/26_fks_constraints.sql
+\echo '✓ FK constraints (reserved)'
+\i ../migrations/27_promotion_schema.sql
+\echo '✓ Promotion schema (sort_order, PENDING, source_enrollment_id)'
+\i ../migrations/28_transfer_unit_lesson.sql
+\echo '✓ Transfer unit/lesson tracking'
+\i ../migrations/29_trial_date_timestamptz.sql
+\echo '✓ Trial trial_date: DATE → TIMESTAMPTZ (lưu cả giờ)'
 \echo 'Migrations hoàn tất!'

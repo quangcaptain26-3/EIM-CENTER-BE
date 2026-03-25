@@ -46,6 +46,21 @@ export class GenerateSessionsUseCase {
   }
 
   /**
+   * EDGE CASE A: Tìm ngày session đầu tiên — phải là ngày thuộc scheduleDays gần nhất >= startDate.
+   * VD: start_date=Thứ Tư, lịch Tue/Thu → session[0] = Thứ Năm cùng tuần.
+   * VD: start_date=Thứ Sáu, lịch Tue/Thu → session[0] = Thứ Ba tuần sau.
+   * @param startDate Ngày bắt đầu lớp (đã normalize)
+   * @param scheduleDays Các thứ trong tuần có lịch (JS getDay: 0=CN, 1=T2, ..., 6=T7)
+   */
+  private findFirstSessionDate(startDate: Date, scheduleDays: number[]): Date {
+    const result = new Date(startDate);
+    while (!scheduleDays.includes(result.getDay())) {
+      result.setDate(result.getDate() + 1);
+    }
+    return result;
+  }
+
+  /**
    * Sinh các buổi học dự kiến
    */
   async execute(classId: string, payload: GenerateSessionsBody): Promise<Session[]> {
@@ -65,7 +80,19 @@ export class GenerateSessionsUseCase {
       throw AppError.badRequest("Lớp học này chưa có lịch học (class_schedules)");
     }
 
-    // 2. Nguồn chuẩn totalUnits: curriculum_programs.total_units (tránh rule drift theo dữ liệu units).
+    const existingSessions = await this.sessionRepo.listByClass(classId);
+    if (existingSessions.length > 0) {
+      if (!payload.replaceExisting) {
+        throw AppError.conflict(
+          "Lớp đã có buổi học. Gửi replaceExisting: true để xóa toàn bộ buổi hiện tại và sinh lại (sẽ mất dữ liệu feedback gắn buổi).",
+          { code: "SESSIONS/CLASS_ALREADY_HAS_SESSIONS", existingCount: existingSessions.length },
+        );
+      }
+      await this.sessionRepo.deleteByClassId(classId);
+    }
+
+    // 2. EDGE CASE B: totalUnits & sessions đọc từ DB — không hardcode.
+    // Số session = (units × sessions/unit theo lesson pattern) + assessments; Kindy khác Flyers.
     const program = await this.programRepo.findProgramById(programId);
     if (!program) {
       throw AppError.badRequest("Không tìm thấy chương trình học (Program) của lớp", {
@@ -193,13 +220,14 @@ export class GenerateSessionsUseCase {
     }
 
     // 6. Cấp phát ngày học theo lịch học
-    const validWeekdays = schedules.map((s) => (s.weekday === 7 ? 0 : s.weekday)); // JS getDay(): CN = 0
+    // Chuyển weekday DB (1=T2..7=CN) sang JS getDay (0=CN, 1=T2..6=T7)
+    const validWeekdays = schedules.map((s) => (s.weekday === 7 ? 0 : s.weekday));
     let targetTotalSessions = payload.weeks ? payload.weeks * schedules.length : Infinity;
 
     const generatedSessions: Array<Omit<Session, "id" | "createdAt">> = [];
-    // Chuẩn hóa rule: generate luôn bám theo class.startDate, không phụ thuộc payload.fromDate.
-    // Nếu startDate không trùng ngày có lịch học, hệ thống sẽ dịch lên buổi học kế tiếp hợp lệ.
-    let currentDate = this.normalizeClassStartDate(classDetail.startDate);
+    // EDGE CASE A: Tìm ngày session đầu tiên — duyệt từ startDate, chọn ngày schedule gần nhất >= startDate
+    const normalizedStart = this.normalizeClassStartDate(classDetail.startDate);
+    let currentDate = this.findFirstSessionDate(normalizedStart, validWeekdays);
 
     while (generatedSessions.length < targetTotalSessions && plan.length > 0) {
       const dayOfWeek = currentDate.getDay();
@@ -208,6 +236,7 @@ export class GenerateSessionsUseCase {
         generatedSessions.push({
           classId,
           sessionDate: new Date(currentDate),
+          sessionStatus: "SCHEDULED",
           unitNo: next.unitNo,
           lessonNo: next.lessonNo,
           lessonPattern: next.lessonPattern,

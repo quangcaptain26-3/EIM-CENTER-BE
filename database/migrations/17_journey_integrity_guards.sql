@@ -1,3 +1,5 @@
+-- Mô tả: Siết integrity hành trình lead → trial → student → enrollment (triggers/constraints).
+
 SET client_encoding = 'UTF8';
 
 -- ============================================================

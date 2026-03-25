@@ -42,3 +42,23 @@ export function buildAssessmentSessions(totalUnits: number): AssessmentSessionSp
   return specs.sort((a, b) => a.unitNo - b.unitNo);
 }
 
+/**
+ * Tính session_type theo unit/lesson và tổng unit chương trình (đồng bộ với buildAssessmentSessions).
+ * - lessonNo > 0 → NORMAL
+ * - lessonNo === 0 → TEST / MIDTERM / FINAL nếu trùng milestone, ngược lại NORMAL
+ */
+export function resolveSessionTypeFromCurriculum(
+  unitNo: number,
+  lessonNo: number,
+  totalUnits: number,
+): SessionType {
+  if (lessonNo !== 0) {
+    return 'NORMAL';
+  }
+  const specs = buildAssessmentSessions(totalUnits);
+  const match = specs.find((s) => s.unitNo === unitNo);
+  if (match) {
+    return match.sessionType;
+  }
+  return 'NORMAL';
+}

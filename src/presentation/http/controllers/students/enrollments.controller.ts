@@ -12,6 +12,7 @@ import { RBAC_PERMISSIONS } from '../../../../shared/security/rbac.policy';
 const enrollmentsRouter = Router();
 
 const WRITE_PERMISSIONS = [RBAC_PERMISSIONS.STUDENT_WRITE];
+const READ_PERMISSIONS = [RBAC_PERMISSIONS.STUDENT_READ];
 // Defense-in-depth:
 // - Chỉ ROOT/ACADEMIC mới được ghi danh / chuyển lớp (loại bỏ rủi ro nếu permission bị cấp sai cho DIRECTOR/SALES/ACCOUNTANT).
 const WRITE_ROLES = ['ROOT', 'ACADEMIC'];
@@ -42,6 +43,22 @@ enrollmentsRouter.post(
         success: true,
         data: newEnrollment,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// [GET] /enrollments/:id/attendance-summary
+enrollmentsRouter.get(
+  '/:id/attendance-summary',
+  authMiddleware,
+  requirePermissions(READ_PERMISSIONS),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { getEnrollmentAttendanceSummaryUseCase } = req.app.locals.container.feedback;
+      const summary = await getEnrollmentAttendanceSummaryUseCase.execute(req.params.id);
+      res.json({ success: true, data: summary });
     } catch (error) {
       next(error);
     }
@@ -92,9 +109,13 @@ enrollmentsRouter.post(
       const actorUserId = req.user?.userId;
       const result = await transferEnrollmentUseCase.execute(req.params.id, req.body, actorUserId);
 
-      // Audit: chuyển lớp là hành động nhạy cảm, log enrollmentId cũ/mới và lớp đích.
+      // Audit: chuyển lớp — trace đầy đủ từ lớp, sang lớp, ngày hiệu lực, lý do, actor
       await auditWriter.write(actorUserId, "ENROLLMENT_TRANSFER", "enrollment", req.params.id, {
-        toClassId: req.body.toClassId,
+        fromClassId: result.oldEnrollment?.classId ?? null,
+        toClassId: result.newEnrollment?.classId ?? req.body.toClassId ?? null,
+        effectiveDate: result.oldEnrollment?.endDate ?? null,
+        reason: req.body.note ?? null,
+        actor: actorUserId ?? null,
         oldEnrollmentId: result.oldEnrollment?.id,
         newEnrollmentId: result.newEnrollment?.id,
       });

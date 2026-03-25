@@ -1,5 +1,5 @@
 /**
- * Chạy script này để seed dữ liệu User mẫu. Mật khẩu đều là '123456'
+ * Chạy script này để seed dữ liệu User mẫu. Mật khẩu đều là 'Eim@2024' (khớp 01_seed_auth.sql)
  * Cách chạy từ thư mục gốc của dự án:
  * npx ts-node src/bootstrap/seed-runtime.ts
  */
@@ -15,8 +15,9 @@ import { PasswordHasher } from '../infrastructure/auth/password-hasher';
 
 const users = [
   { email: 'root@eim.edu.vn', fullName: 'Root Admin', roleCode: 'ROOT' },
+  { email: 'director@eim.edu.vn', fullName: 'Giám Đốc', roleCode: 'DIRECTOR' },
   { email: 'teacher@eim.edu.vn', fullName: 'Giáo Viên Ngữ Pháp', roleCode: 'TEACHER' },
-  { email: 'finance@eim.edu.vn', fullName: 'Kế Toán Trưởng', roleCode: 'ACCOUNTANT' },
+  { email: 'accountant@eim.edu.vn', fullName: 'Kế Toán Trưởng', roleCode: 'ACCOUNTANT' },
   { email: 'sales@eim.edu.vn', fullName: 'Nhân Viên Kinh Doanh', roleCode: 'SALES' },
 ];
 
@@ -24,7 +25,7 @@ async function seed() {
   console.log('Bắt đầu Seed users...');
   
   try {
-    const passwordHash = await PasswordHasher.hash('123456');
+    const passwordHash = await PasswordHasher.hash('Eim@2024');
 
     for (const user of users) {
       // 1. Lấy vai trò RoleID

@@ -21,24 +21,35 @@ export class PostgresTrialRepository implements TrialRepoPort {
   async list(params: TrialListParams): Promise<TrialLead[]> {
     const { search, status, limit = 20, offset = 0 } = params;
     
-    let query = `SELECT * FROM trial_leads WHERE 1=1`;
+    // Nhúng schedule để FE hiển thị nhanh ngay ở trang danh sách (không phải chỉ trang chi tiết)
+    let query = `
+      SELECT
+        tl.*,
+        ts.id AS schedule_id,
+        ts.class_id AS schedule_class_id,
+        ts.trial_date AS schedule_trial_date,
+        ts.created_at AS schedule_created_at
+      FROM trial_leads tl
+      LEFT JOIN trial_schedules ts ON ts.trial_id = tl.id
+      WHERE 1=1
+    `;
     const values: any[] = [];
     let paramIndex = 1;
 
     if (search) {
       // Tìm kiếm ILIKE theo full_name, phone, hoặc email
-      query += ` AND (full_name ILIKE $${paramIndex} OR phone ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+      query += ` AND (tl.full_name ILIKE $${paramIndex} OR tl.phone ILIKE $${paramIndex} OR tl.email ILIKE $${paramIndex})`;
       values.push(`%${search}%`);
       paramIndex++;
     }
 
     if (status) {
-      query += ` AND status = $${paramIndex}`;
+      query += ` AND tl.status = $${paramIndex}`;
       values.push(status);
       paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY tl.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     values.push(limit, offset);
 
     const result = await this.pool.query(query, values);
@@ -208,6 +219,22 @@ export class PostgresTrialRepository implements TrialRepoPort {
   }
 
   /**
+   * Trial scheduled quá N ngày — dùng để notify Sales (rule: trial_date < NOW() - 1 day).
+   */
+  async listScheduledOverdue(deltaDays: number = 1): Promise<TrialLead[]> {
+    const query = `
+      SELECT tl.*
+      FROM trial_leads tl
+      JOIN trial_schedules ts ON ts.trial_id = tl.id
+      WHERE tl.status = 'SCHEDULED'
+        AND ts.trial_date < NOW() - make_interval(days => $1::int)
+      ORDER BY ts.trial_date ASC
+    `;
+    const result = await this.pool.query(query, [deltaDays]);
+    return result.rows.map((r) => this.mapToEntity(r));
+  }
+
+  /**
    * Chuyển đổi trạng thái từ học thử sang học viên chính thức,
    * lưu lịch sử conversion vào bảng trial_conversions.
    */
@@ -263,6 +290,15 @@ export class PostgresTrialRepository implements TrialRepoPort {
       note: row.note,
       createdBy: row.created_by,
       createdAt: row.created_at,
+      schedule: row.schedule_id
+        ? {
+            id: row.schedule_id,
+            trialId: row.id,
+            classId: row.schedule_class_id,
+            trialDate: row.schedule_trial_date,
+            createdAt: row.schedule_created_at,
+          }
+        : null,
     };
   }
 

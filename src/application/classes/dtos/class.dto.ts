@@ -55,3 +55,10 @@ export const addEnrollmentBodySchema = z.object({
 });
 
 export type AddEnrollmentBody = z.infer<typeof addEnrollmentBodySchema>;
+
+/** Body cho đóng lớp — option complete enrollments (bám thiết kế kết thúc khóa) */
+export const closeClassBodySchema = z.object({
+  /** Khi true (mặc định): chuyển tất cả enrollment ACTIVE/PAUSED sang GRADUATED trước khi đóng */
+  completeRemainingEnrollments: z.boolean().optional().default(true),
+});
+export type CloseClassBody = z.infer<typeof closeClassBodySchema>;

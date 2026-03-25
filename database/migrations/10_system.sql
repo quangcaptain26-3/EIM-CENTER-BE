@@ -1,3 +1,5 @@
+-- Mô tả: Hệ thống — audit logs và thông báo user (FK auth_users).
+
 SET client_encoding = 'UTF8';
 
 -- ============================================================

@@ -38,7 +38,9 @@ export class UpdateTrialUseCase {
         CLOSED: [], // đã chốt
       };
 
-      const ok = from === to ? false : allowedNext[from]?.includes(to);
+      // Cho phép update idempotent (ví dụ SCHEDULED -> SCHEDULED) để FE có thể gửi lại
+      // payload giống trạng thái hiện tại mà không làm fail flow.
+      const ok = from === to ? true : allowedNext[from]?.includes(to);
       if (!ok) {
         throw AppError.badRequest("Chuyển trạng thái TrialLead không hợp lệ theo lifecycle", {
           code: "TRIAL/INVALID_STATUS_TRANSITION",

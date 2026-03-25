@@ -1,15 +1,12 @@
 import { Enrollment, EnrollmentStatus } from "../entities/enrollment.entity";
 
 export type EnrollmentHistoryMeta = {
-  /**
-   * userId người thực hiện. Null nếu là hệ thống/anonymous.
-   */
   changedBy?: string | null;
-  /**
-   * Lưu vết thay đổi lớp (nếu có).
-   */
   fromClassId?: string | null;
   toClassId?: string | null;
+  /** unit_no, lesson_no tại thời điểm chuyển lớp (audit trail) */
+  transferUnitNo?: number | null;
+  transferLessonNo?: number | null;
 };
 
 /**
@@ -20,7 +17,14 @@ export interface EnrollmentRepoPort {
   create(input: Omit<Enrollment, "id" | "createdAt">, options?: { tx?: { query: (text: string, params?: unknown[]) => Promise<any> } }): Promise<Enrollment>;
   findById(id: string, options?: { tx?: { query: (text: string, params?: unknown[]) => Promise<any> } }): Promise<Enrollment | null>;
   listByStudent(studentId: string): Promise<Enrollment[]>;
-  updateStatus(enrollmentId: string, toStatus: EnrollmentStatus, note?: string): Promise<Enrollment>;
+  /** Khi chuyển sang trạng thái kết thúc (GRADUATED, DROPPED, TRANSFERRED), endDate được set nếu chưa có */
+  updateStatus(enrollmentId: string, toStatus: EnrollmentStatus, note?: string, endDate?: Date): Promise<Enrollment>;
+  /** Lấy danh sách enrollment theo lớp (dùng cho close class, promotion) */
+  listByClassId(
+    classId: string,
+    statuses?: EnrollmentStatus[],
+    options?: { tx?: { query: (text: string, params?: unknown[]) => Promise<unknown> } }
+  ): Promise<Enrollment[]>;
   updateClassId(enrollmentId: string, classId: string | null, options?: { tx?: { query: (text: string, params?: unknown[]) => Promise<any> } }): Promise<Enrollment>;
   endEnrollment(enrollmentId: string, endDate: Date, note?: string): Promise<Enrollment>;
   createHistory(

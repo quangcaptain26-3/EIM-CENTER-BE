@@ -3,6 +3,23 @@
  * Cung cấp các tiện ích xây dựng và kiểm tra thông báo hệ thống.
  */
 
+/**
+ * Rule: Trial scheduled quá 1 ngày mà chưa update → notify Sales.
+ * Query để tìm trials cần follow-up:
+ *   SELECT * FROM trial_leads tl
+ *   LEFT JOIN trial_schedules ts ON ts.trial_id = tl.id
+ *   WHERE tl.status = 'SCHEDULED'
+ *     AND ts.trial_date IS NOT NULL
+ *     AND ts.trial_date < NOW() - INTERVAL '1 day'
+ */
+export const TRIAL_SCHEDULED_FOLLOW_UP_SQL = `
+  SELECT tl.id, tl.full_name, tl.phone, ts.trial_date
+  FROM trial_leads tl
+  JOIN trial_schedules ts ON ts.trial_id = tl.id
+  WHERE tl.status = 'SCHEDULED'
+    AND ts.trial_date < NOW() - INTERVAL '1 day'
+`;
+
 /** Độ dài tối đa cho phép của tiêu đề thông báo */
 const MAX_TITLE_LENGTH = 200;
 

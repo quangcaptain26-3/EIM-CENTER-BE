@@ -1,3 +1,5 @@
+-- Mô tả: Ràng buộc vai trò giáo viên trên sessions/class_staff (functions + triggers).
+
 SET client_encoding = 'UTF8';
 
 BEGIN;

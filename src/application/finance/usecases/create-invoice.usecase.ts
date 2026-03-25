@@ -32,6 +32,13 @@ export class CreateInvoiceUseCase {
     if (!enrollment) {
       throw AppError.notFound("Không tìm thấy enrollment để tạo hóa đơn");
     }
+    // R5: Chỉ cho phép tạo invoice khi enrollment còn đang học (ACTIVE/PAUSED)
+    if (enrollment.status !== "ACTIVE" && enrollment.status !== "PAUSED") {
+      throw AppError.badRequest(
+        `Không thể tạo hóa đơn cho enrollment đã kết thúc (trạng thái: ${enrollment.status})`,
+        { code: "FINANCE/ENROLLMENT_NOT_ACTIVE", enrollmentId: body.enrollmentId },
+      );
+    }
     if (!enrollment.classId) {
       if (amount === undefined) {
         throw AppError.badRequest("Enrollment chưa được xếp lớp nên chưa resolve được FeePlan của Program", {

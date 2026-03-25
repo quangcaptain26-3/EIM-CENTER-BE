@@ -55,6 +55,7 @@ export class ClassPgRepo implements ClassRepoPort {
       idx++;
     }
 
+    // Filter: status (ACTIVE/PAUSED/CLOSED), program_id, search (code/name)
     const query = `
       SELECT 
         c.id, 
@@ -67,11 +68,10 @@ export class ClassPgRepo implements ClassRepoPort {
         c.start_date, 
         c.status, 
         c.created_at,
-        (
-          SELECT COUNT(*)::INT
-          FROM enrollments e
-          WHERE e.class_id = c.id AND e.status = 'ACTIVE'
-        ) AS current_size
+        -- Subquery: đếm enrollments ACTIVE = sĩ số hiện tại
+        (SELECT COUNT(*)::INT FROM enrollments e WHERE e.class_id = c.id AND e.status = 'ACTIVE') AS current_size,
+        -- Số chỗ còn trống = capacity - count(enrollments ACTIVE) — dùng cho tìm lớp còn chỗ
+        c.capacity - (SELECT COUNT(*)::INT FROM enrollments e WHERE e.class_id = c.id AND e.status = 'ACTIVE') AS remaining_capacity
       FROM classes c
       JOIN curriculum_programs p ON p.id = c.program_id
       ${whereStr}
@@ -121,6 +121,20 @@ export class ClassPgRepo implements ClassRepoPort {
       WHERE id = $1
     `;
     const res = await pool.query(query, [id]);
+    if (res.rowCount === 0) return null;
+    return this.mapClassRowToEntity(res.rows[0]);
+  }
+
+  /** Lấy lớp theo mã lớp — dùng cho thao tác thân thiện (không nhập UUID) */
+  async findByCode(code: string): Promise<Class | null> {
+    const trimmed = String(code).trim();
+    if (!trimmed) return null;
+    const query = `
+      SELECT id, code, name, program_id, room, capacity, start_date, status, created_at
+      FROM classes
+      WHERE UPPER(TRIM(code)) = UPPER($1)
+    `;
+    const res = await pool.query(query, [trimmed]);
     if (res.rowCount === 0) return null;
     return this.mapClassRowToEntity(res.rows[0]);
   }
@@ -258,6 +272,8 @@ export class ClassPgRepo implements ClassRepoPort {
   // --- Mapper ---
 
   private mapClassRowToEntity(r: any): Class {
+    const currentSize = typeof r.current_size === "number" ? r.current_size : Number(r.current_size ?? 0);
+    const remainingCapacity = typeof r.remaining_capacity === "number" ? r.remaining_capacity : Number(r.remaining_capacity ?? 0);
     return {
       id: r.id,
       code: r.code,
@@ -266,7 +282,8 @@ export class ClassPgRepo implements ClassRepoPort {
       programName: r.program_name ?? null,
       room: r.room,
       capacity: r.capacity,
-      currentSize: typeof r.current_size === "number" ? r.current_size : Number(r.current_size ?? 0),
+      currentSize,
+      remainingCapacity,
       startDate: r.start_date, // tùy driver pg có thể parse thành JS Date
       status: r.status,
       createdAt: r.created_at,

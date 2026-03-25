@@ -1,0 +1,1 @@
+-- Mô tả: Dự phòng cho các ràng buộc FK tổng hợp (file giữ chỗ; chưa có DDL).

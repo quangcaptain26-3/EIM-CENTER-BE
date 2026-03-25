@@ -2,6 +2,7 @@ import { AppError } from "../../../shared/errors/app-error";
 import { FeedbackRepoPort } from "../../../domain/feedback/repositories/feedback.repo.port";
 import { ScoreRepoPort } from "../../../domain/feedback/repositories/score.repo.port";
 import { FeedbackPolicy } from "../../../domain/feedback/services/feedback.policy";
+import { canEditFeedbackByDeadline } from "../../../domain/feedback/services/feedback-edit-deadline.rule";
 import { ScorePolicy } from "../../../domain/feedback/services/score.policy";
 import { ISessionRepository } from "../../../domain/sessions/repositories/session.repo.port";
 import { RosterRepoPort } from "../../../domain/classes/repositories/roster.repo.port";
@@ -32,6 +33,12 @@ export class ImportSessionFeedbackUseCase {
     if (!session) {
       throw AppError.notFound("Không tìm thấy buổi học");
     }
+    if (session.sessionStatus === "CANCELLED") {
+      throw AppError.badRequest("Không thể import feedback cho buổi học đã bị hủy", {
+        code: "FEEDBACK/SESSION_CANCELLED",
+        sessionId,
+      });
+    }
 
     const klass = await this.classRepo.findById(session.classId);
     if (!klass) {
@@ -47,11 +54,27 @@ export class ImportSessionFeedbackUseCase {
 
     FeedbackPolicy.assertCanWriteSession({ ...session, id: sessionId }, actor);
 
+    // R6: Teacher chỉ được sửa trong cửa sổ X ngày sau session; ACADEMIC/ROOT bỏ qua
+    const deadlineCheck = canEditFeedbackByDeadline(session.sessionDate, actor.roles);
+    if (!deadlineCheck.allowed) {
+      throw AppError.badRequest(deadlineCheck.reason ?? "Đã quá hạn chỉnh sửa", {
+        code: "FEEDBACK/EDIT_DEADLINE_PASSED",
+        sessionId,
+        sessionDate: session.sessionDate.toISOString(),
+      });
+    }
+
     const parseResult = await this.feedbackImporter.parseSessionFeedbackDraft(buffer);
 
     // Nếu file hỏng hoàn toàn (lỗi global nghiêm trọng) thì trả luôn, không cố import
     if (parseResult.globalErrors.length > 0 && parseResult.drafts.length === 0) {
-      return this.buildResultFromErrors(parseResult, [], [], []);
+      return this.buildResultFromErrors(
+        parseResult,
+        [],
+        [],
+        [],
+        session.sessionDate.toISOString(),
+      );
     }
 
     const roster = await this.rosterRepo.listRosterAtDate(session.classId, session.sessionDate);
@@ -89,7 +112,13 @@ export class ImportSessionFeedbackUseCase {
       }
     }
 
-    return this.buildResultFromErrors(parseResult, businessErrors, feedbackItems, scoreItems);
+    return this.buildResultFromErrors(
+      parseResult,
+      businessErrors,
+      feedbackItems,
+      scoreItems,
+      session.sessionDate.toISOString(),
+    );
   }
 
   private applyBusinessValidation(
@@ -309,6 +338,7 @@ export class ImportSessionFeedbackUseCase {
     businessErrors: ImportRowError[],
     feedbackItems: unknown[],
     scoreItems: unknown[],
+    sessionDate: string,
   ): ImportFeedbackResult {
     const allErrors = [...parseResult.globalErrors, ...parseResult.rowErrors, ...businessErrors];
     const processedCount = parseResult.drafts.length;
@@ -326,6 +356,7 @@ export class ImportSessionFeedbackUseCase {
       successCount,
       errorCount,
       errors: allErrors,
+      sessionDate,
     };
   }
 

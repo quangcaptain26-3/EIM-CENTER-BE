@@ -121,6 +121,36 @@ export class PostgresFeedbackRepository implements FeedbackRepoPort {
     }
   }
 
+  async getAttendanceSummaries(
+    enrollmentIds: string[]
+  ): Promise<Map<string, { absentCount: number; totalSessions: number }>> {
+    if (enrollmentIds.length === 0) return new Map();
+
+    const query = `
+      SELECT
+        e.id AS enrollment_id,
+        COUNT(DISTINCT s.id)::INT AS total_sessions,
+        COUNT(*) FILTER (WHERE sf.attendance = 'ABSENT')::INT AS absent_count
+      FROM enrollments e
+      JOIN sessions s ON s.class_id = e.class_id
+        AND s.session_date >= e.start_date
+        AND (e.end_date IS NULL OR s.session_date <= e.end_date)
+      LEFT JOIN session_feedback sf ON sf.session_id = s.id AND sf.student_id = e.student_id
+      WHERE e.id = ANY($1::uuid[])
+        AND e.class_id IS NOT NULL
+      GROUP BY e.id
+    `;
+    const { rows } = await this.pool.query(query, [enrollmentIds]);
+    const map = new Map<string, { absentCount: number; totalSessions: number }>();
+    for (const r of rows) {
+      map.set(String(r.enrollment_id), {
+        absentCount: Number(r.absent_count) || 0,
+        totalSessions: Number(r.total_sessions) || 0,
+      });
+    }
+    return map;
+  }
+
   private mapToEntity(row: Record<string, unknown>): SessionFeedback {
     return {
       id: String(row.id),

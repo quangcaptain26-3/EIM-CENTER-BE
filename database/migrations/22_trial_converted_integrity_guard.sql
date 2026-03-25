@@ -1,4 +1,6 @@
--- migration: 20_trial_converted_integrity_guard.sql
+-- Mô tả: Trigger đảm bảo trial CONVERTED phải có bản ghi trial_conversions.
+
+-- migration: 22_trial_converted_integrity_guard.sql
 -- Mục tiêu:
 -- - Chặn set trial_leads.status = 'CONVERTED' nếu không có trial_conversions tương ứng.
 -- - Bảo vệ integrity khi có thao tác SQL trực tiếp hoặc luồng nội bộ bypass application layer.

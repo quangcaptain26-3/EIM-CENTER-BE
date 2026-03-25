@@ -7,17 +7,29 @@ import { StudentRepoPort } from "../../../../domain/students/repositories/studen
  */
 export class StudentPgRepo implements StudentRepoPort {
   async list(params: { search?: string; limit?: number; offset?: number }): Promise<Student[]> {
-    let query = `SELECT id, full_name AS "fullName", dob, gender, phone, email, guardian_name AS "guardianName", guardian_phone AS "guardianPhone", address, created_at AS "createdAt" FROM students`;
+    // Filter: tìm theo tên (full_name), SĐT (phone, guardian_phone), email — ILIKE case-insensitive
+    let query = `
+      SELECT s.id, s.full_name AS "fullName", s.dob, s.gender, s.phone, s.email,
+             s.guardian_name AS "guardianName", s.guardian_phone AS "guardianPhone", s.address,
+             s.created_at AS "createdAt",
+             -- Subquery: lấy enrollment ACTIVE hiện tại (lớp đang học) để học vụ biết khi add vào lớp khác
+             (SELECT json_build_object('classCode', c.code, 'programName', p.name)
+              FROM enrollments e
+              LEFT JOIN classes c ON c.id = e.class_id
+              LEFT JOIN curriculum_programs p ON p.id = c.program_id
+              WHERE e.student_id = s.id AND e.status = 'ACTIVE'
+              ORDER BY e.start_date DESC LIMIT 1) AS "currentEnrollment"
+      FROM students s`;
     const values: any[] = [];
     let paramIndex = 1;
 
     if (params.search) {
-      query += ` WHERE full_name ILIKE $${paramIndex} OR phone ILIKE $${paramIndex} OR email ILIKE $${paramIndex}`;
+      query += ` WHERE (s.full_name ILIKE $${paramIndex} OR s.phone ILIKE $${paramIndex} OR s.email ILIKE $${paramIndex} OR s.guardian_phone ILIKE $${paramIndex})`;
       values.push(`%${params.search}%`);
       paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ` ORDER BY s.created_at DESC`;
 
     if (params.limit !== undefined) {
       query += ` LIMIT $${paramIndex}`;
@@ -31,7 +43,13 @@ export class StudentPgRepo implements StudentRepoPort {
     }
 
     const { rows } = await pool.query(query, values);
-    return rows;
+    // Map currentEnrollment: pg trả json object hoặc null
+    return rows.map((r: any) => ({
+      ...r,
+      currentEnrollment: r.currentEnrollment && typeof r.currentEnrollment === 'object'
+        ? { classCode: r.currentEnrollment.classCode ?? '', programName: r.currentEnrollment.programName ?? null }
+        : null,
+    }));
   }
 
   async count(params: { search?: string }): Promise<number> {
@@ -39,7 +57,7 @@ export class StudentPgRepo implements StudentRepoPort {
     const values: any[] = [];
 
     if (params.search) {
-      query += ` WHERE full_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1`;
+      query += ` WHERE full_name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1 OR guardian_phone ILIKE $1`;
       values.push(`%${params.search}%`);
     }
 

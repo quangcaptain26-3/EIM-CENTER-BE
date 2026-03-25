@@ -19,8 +19,8 @@ export class PostgresSessionRepository implements ISessionRepository {
       
       for (const input of inputs) {
         const query = `
-          INSERT INTO sessions (class_id, session_date, unit_no, lesson_no, lesson_pattern, session_type, main_teacher_id, cover_teacher_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          INSERT INTO sessions (class_id, session_date, session_status, unit_no, lesson_no, lesson_pattern, session_type, main_teacher_id, cover_teacher_id)
+          VALUES ($1, $2, 'SCHEDULED', $3, $4, $5, $6, $7, $8)
           RETURNING *;
         `;
         const values = [
@@ -135,6 +135,10 @@ export class PostgresSessionRepository implements ISessionRepository {
     const values: any[] = [];
     let paramIndex = 1;
 
+    if (patch.sessionStatus !== undefined) {
+      fields.push(`session_status = $${paramIndex++}`);
+      values.push(patch.sessionStatus);
+    }
     if (patch.unitNo !== undefined) {
       fields.push(`unit_no = $${paramIndex++}`);
       values.push(patch.unitNo);
@@ -182,7 +186,7 @@ export class PostgresSessionRepository implements ISessionRepository {
   /**
    * Đổi lịch học (Từ ngày cũ sang ngày mới)
    */
-  async reschedule(sessionId: string, toDate: Date, note?: string): Promise<Session> {
+  async reschedule(sessionId: string, toDate: Date, note?: string, changedBy?: string): Promise<Session> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -210,10 +214,10 @@ export class PostgresSessionRepository implements ISessionRepository {
 
       // Insert dữ liệu vào session_reschedules
       const historyQuery = `
-        INSERT INTO session_reschedules (session_id, from_date, to_date, note)
-        VALUES ($1, $2, $3, $4);
+        INSERT INTO session_reschedules (session_id, from_date, to_date, note, changed_by)
+        VALUES ($1, $2, $3, $4, $5);
       `;
-      await client.query(historyQuery, [sessionId, fromDate, toDate, note || null]);
+      await client.query(historyQuery, [sessionId, fromDate, toDate, note || null, changedBy || null]);
 
       await client.query("COMMIT");
       return this.mapToEntity(updatedSession);
@@ -242,6 +246,31 @@ export class PostgresSessionRepository implements ISessionRepository {
     return result.rows.length > 0;
   }
 
+  async deleteByClassId(classId: string): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM sessions WHERE class_id = $1`,
+      [classId],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  /**
+   * Cập nhật main_teacher_id cho các buổi có session_date >= fromDate.
+   */
+  async updateMainTeacherForSessionsFromDate(
+    classId: string,
+    fromDate: Date,
+    mainTeacherId: string | null
+  ): Promise<number> {
+    const result = await this.pool.query(
+      `UPDATE sessions
+       SET main_teacher_id = $1
+       WHERE class_id = $2 AND session_date >= $3`,
+      [mainTeacherId, classId, fromDate],
+    );
+    return result.rowCount ?? 0;
+  }
+
   /**
    * Ánh xạ từ DB Row sang Session Entity
    */
@@ -250,6 +279,7 @@ export class PostgresSessionRepository implements ISessionRepository {
       id: row.id,
       classId: row.class_id,
       sessionDate: row.session_date,
+      sessionStatus: (row.session_status as Session["sessionStatus"]) ?? "SCHEDULED",
       unitNo: row.unit_no,
       lessonNo: row.lesson_no,
       lessonPattern: row.lesson_pattern ?? null,
