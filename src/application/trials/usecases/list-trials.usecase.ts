@@ -13,7 +13,8 @@ export class ListTrialsUseCase {
       this.trialRepo.list(validated),
       this.trialRepo.count({
         search: validated.search,
-        status: validated.status
+        status: validated.status,
+        statuses: validated.statuses,
       })
     ]);
 

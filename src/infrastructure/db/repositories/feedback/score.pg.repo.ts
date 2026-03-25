@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { ScoreType, SessionScore } from "../../../../domain/feedback/entities/session-score.entity";
 import { ScoreRepoPort } from "../../../../domain/feedback/repositories/score.repo.port";
 
@@ -39,13 +39,14 @@ export class PostgresScoreRepository implements ScoreRepoPort {
       total?: number | null;
       note?: string | null;
     }>,
-    options?: { tx?: { query: (text: string, params?: unknown[]) => Promise<any> } }
+    options?: { tx?: PoolClient }
   ): Promise<SessionScore[]> {
     if (items.length === 0) return [];
 
     const externalTx = options?.tx;
     const client = externalTx ?? (await this.pool.connect());
-    const execQuery = externalTx ? externalTx.query : client.query.bind(client);
+    // PoolClient.query phụ thuộc vào `this`, nên luôn gọi qua object (tránh mất context khi truyền hàm).
+    const execQuery = (text: string, params?: unknown[]) => (client as any).query(text, params);
 
     // Chunk để tránh query quá dài + giảm áp lực lên PostgreSQL.
     const BATCH_SIZE = 200;

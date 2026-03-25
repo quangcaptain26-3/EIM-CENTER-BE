@@ -2,6 +2,8 @@ import { TrialLead, TrialSchedule, TrialConversion, TrialStatus } from "../entit
 
 export interface TrialListParams {
   search?: string;
+  /** Lọc nhiều trạng thái (ưu tiên hơn status nếu được truyền). */
+  statuses?: TrialStatus[];
   status?: TrialStatus;
   limit?: number;
   offset?: number;

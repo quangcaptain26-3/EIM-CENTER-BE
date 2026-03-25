@@ -58,15 +58,16 @@ WHERE cp.id = ffp.program_id
 
 -- 3. Khởi tạo Invoices — có ít nhất 1 OVERDUE để Kế toán demo danh sách công nợ
 INSERT INTO finance_invoices (id, enrollment_id, amount, status, due_date, issued_at) VALUES
-  ('0de09142-d792-44fa-b706-744ff6d065b2', '2cef09b6-4baf-45fa-a887-fbe9e94cb81e', 4000000, 'PAID',   '2025-10-01', '2025-09-01'),
-  ('9426d546-50db-48fc-bedd-4a821631b73c', 'd88142cb-2fea-47f4-82ac-d19b80783d45', 4000000, 'ISSUED', '2025-11-01', '2025-10-01'),
+  -- Neo quanh 25/03/2026
+  ('0de09142-d792-44fa-b706-744ff6d065b2', '2cef09b6-4baf-45fa-a887-fbe9e94cb81e', 4000000, 'PAID',   '2026-03-20', '2026-03-17'),
+  ('9426d546-50db-48fc-bedd-4a821631b73c', 'd88142cb-2fea-47f4-82ac-d19b80783d45', 4000000, 'ISSUED', '2026-04-05', '2026-03-24'),
   -- Invoice OVERDUE — demo danh sách công nợ cho Kế toán
-  ('a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5e', 'b4b9bf0b-537e-4b7c-ad76-c7d5ed9f8312', 4000000, 'OVERDUE', '2025-08-15', '2025-08-01')
+  ('a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5e', 'b4b9bf0b-537e-4b7c-ad76-c7d5ed9f8312', 4000000, 'OVERDUE', '2026-03-10', '2026-03-01')
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Khởi tạo Payments
 INSERT INTO finance_payments (id, invoice_id, amount, method, paid_at) VALUES
-  ('f58a011f-688f-49f4-b9a0-7595696d4d87', '0de09142-d792-44fa-b706-744ff6d065b2', 4000000, 'TRANSFER', '2025-09-05')
+  ('f58a011f-688f-49f4-b9a0-7595696d4d87', '0de09142-d792-44fa-b706-744ff6d065b2', 4000000, 'TRANSFER', '2026-03-18')
 ON CONFLICT (id) DO NOTHING;
 
 -- Verify

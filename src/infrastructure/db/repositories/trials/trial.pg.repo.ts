@@ -19,7 +19,7 @@ export class PostgresTrialRepository implements TrialRepoPort {
    * @param params Điều kiện tìm kiếm (search fullName/phone/email bằng ILIKE, status, limit, offset)
    */
   async list(params: TrialListParams): Promise<TrialLead[]> {
-    const { search, status, limit = 20, offset = 0 } = params;
+    const { search, status, statuses, limit = 20, offset = 0 } = params;
     
     // Nhúng schedule để FE hiển thị nhanh ngay ở trang danh sách (không phải chỉ trang chi tiết)
     let query = `
@@ -43,7 +43,11 @@ export class PostgresTrialRepository implements TrialRepoPort {
       paramIndex++;
     }
 
-    if (status) {
+    if (statuses && statuses.length > 0) {
+      query += ` AND tl.status = ANY($${paramIndex})`;
+      values.push(statuses);
+      paramIndex++;
+    } else if (status) {
       query += ` AND tl.status = $${paramIndex}`;
       values.push(status);
       paramIndex++;
@@ -60,7 +64,7 @@ export class PostgresTrialRepository implements TrialRepoPort {
    * Đếm tổng số lượng TrialLeads phục vụ cho phân trang
    */
   async count(params: Omit<TrialListParams, "limit" | "offset">): Promise<number> {
-    const { search, status } = params;
+    const { search, status, statuses } = params;
     
     let query = `SELECT COUNT(*) FROM trial_leads WHERE 1=1`;
     const values: any[] = [];
@@ -72,7 +76,11 @@ export class PostgresTrialRepository implements TrialRepoPort {
       paramIndex++;
     }
 
-    if (status) {
+    if (statuses && statuses.length > 0) {
+      query += ` AND status = ANY($${paramIndex})`;
+      values.push(statuses);
+      paramIndex++;
+    } else if (status) {
       query += ` AND status = $${paramIndex}`;
       values.push(status);
       paramIndex++;

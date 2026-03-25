@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+const TrialStatusSchema = z.enum(["NEW", "CONTACTED", "SCHEDULED", "ATTENDED", "NO_SHOW", "CONVERTED", "CLOSED"]);
+
+const StatusesQuerySchema = z.preprocess((input) => {
+  // Hỗ trợ các dạng:
+  // - statuses=NEW,CONTACTED
+  // - statuses=["NEW","CONTACTED"] (nếu query parser cho ra array)
+  if (input == null) return undefined;
+  if (Array.isArray(input)) return input;
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed) return undefined;
+    return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return input;
+}, z.array(TrialStatusSchema).min(1).optional());
+
 export const CreateTrialSchema = z.object({
   fullName: z.string().min(1, "Họ tên không được để trống").max(255),
   phone: z.string().min(10, "Số điện thoại không hợp lệ").max(20),
@@ -15,7 +31,7 @@ export const UpdateTrialSchema = z.object({
   phone: z.string().min(10).max(20).optional(),
   email: z.string().email().optional().nullable(),
   source: z.string().max(100).optional().nullable(),
-  status: z.enum(["NEW", "CONTACTED", "SCHEDULED", "ATTENDED", "NO_SHOW", "CONVERTED", "CLOSED"]).optional(),
+  status: TrialStatusSchema.optional(),
   note: z.string().max(1000).optional().nullable(),
 });
 
@@ -23,7 +39,10 @@ export type UpdateTrialBody = z.infer<typeof UpdateTrialSchema>;
 
 export const ListTrialsSchema = z.object({
   search: z.string().optional(),
-  status: z.enum(["NEW", "CONTACTED", "SCHEDULED", "ATTENDED", "NO_SHOW", "CONVERTED", "CLOSED"]).optional(),
+  // Lọc nhiều trạng thái (ưu tiên hơn status nếu truyền vào)
+  statuses: StatusesQuerySchema,
+  // Lọc 1 trạng thái (giữ tương thích ngược)
+  status: TrialStatusSchema.optional(),
   limit: z.coerce.number().min(1).max(100).default(20),
   offset: z.coerce.number().min(0).default(0),
 });

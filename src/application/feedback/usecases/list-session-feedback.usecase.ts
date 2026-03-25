@@ -32,6 +32,7 @@ export class ListSessionFeedbackUseCase {
           homework: fb.homework,
           participation: fb.participation,
           behavior: fb.behavior,
+          languageUsage: fb.languageUsage,
           comment: fb.commentText,
           teacherId: fb.teacherId,
           updatedAt: fb.updatedAt.toISOString(),
