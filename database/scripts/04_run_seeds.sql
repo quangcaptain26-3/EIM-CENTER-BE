@@ -1,16 +1,7 @@
-\echo '========================================='
-\echo 'Chạy seeds...'
-\echo '========================================='
-\i ../seeds/01_seed_auth.sql
-\echo '✓ Roles + Permissions + Users'
-\i ../seeds/02_seed_curriculum.sql
-\echo '✓ Programs + Units'
-\i ../seeds/03_seed_classes_students.sql
-\echo '✓ Classes + Students + Sessions'
-\i ../seeds/04_seed_feedback_trials.sql
-\echo '✓ Feedback + Trials'
-\i ../seeds/05_seed_finance.sql
-\echo '✓ Finance'
-\i ../seeds/06_seed_system.sql
-\echo '✓ Notifications + Audit logs'
-\echo 'Seeds hoàn tất!'
+-- =============================================================================
+-- ĐÃ THAY THẾ — không dùng file này nữa.
+-- Dùng: database/scripts/02_run_seeds.sql
+-- Hoặc cài full: database/scripts/INSTALL.sql  /  npm run db:fresh
+-- =============================================================================
+\echo 'ERROR: 04_run_seeds.sql is obsolete. Use 02_run_seeds.sql or INSTALL.sql'
+\quit 1

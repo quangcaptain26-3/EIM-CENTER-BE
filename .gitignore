@@ -3,7 +3,7 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (tsc emit — tái tạo mỗi khi chạy `npm run build` hoặc `npm start`)
 dist/
 
 # Không commit build artifacts trong src (đề phòng chạy nhầm tsc vào src)

@@ -1,57 +1,46 @@
-// src/domain/sessions/repositories/session.repo.port.ts
-import { Session, SessionStatus, SessionType } from "../entities/session.entity";
+import { SessionEntity, SessionCoverEntity } from '../entities/session.entity';
 
-export interface CreateSessionInput {
-  classId: string;
-  sessionDate: Date;
-  unitNo: number;
-  lessonNo: number;
-  lessonPattern?: string | null;
-  sessionType: SessionType;
-  mainTeacherId?: string | null;
-  coverTeacherId?: string | null;
-}
+/** Pool hoặc PoolClient — truyền vào khi thực thi trong transaction */
+export type SessionDbExecutor = {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>;
+};
 
-export interface UpdateSessionInput {
-  sessionStatus?: SessionStatus;
-  unitNo?: number;
-  lessonNo?: number;
-  lessonPattern?: string | null;
-  sessionType?: SessionType;
-  mainTeacherId?: string | null;
-  coverTeacherId?: string | null;
-}
+export interface ISessionRepo {
+  findById(id: string): Promise<SessionEntity | null>;
+  findByClass(classId: string): Promise<SessionEntity[]>;
+  findByTeacher(teacherId: string, month: number, year: number): Promise<SessionEntity[]>;
+  bulkCreate(sessions: Partial<SessionEntity>[]): Promise<SessionEntity[]>;
+  update(id: string, data: Partial<{
+    sessionDate: Date;
+    status: 'pending' | 'completed' | 'cancelled';
+    sessionNote: string;
+    rescheduleReason: string;
+    rescheduledBy: string;
+    originalDate: Date;
+  }>): Promise<SessionEntity>;
 
-export interface ISessionRepository {
-  /** Tạo nhiều buổi học */
-  createMany(inputs: CreateSessionInput[]): Promise<Session[]>;
-  /** Lấy danh sách buổi học của một lớp */
-  listByClass(classId: string): Promise<Session[]>;
-  /** Lấy danh sách buổi học của một lớp theo khoảng ngày (lọc ở DB) */
-  listByClassInRange(
-    classId: string,
-    params?: { fromDate?: Date; toDate?: Date; limit?: number },
-  ): Promise<Session[]>;
-  /** Tìm buổi học theo ID */
-  findById(sessionId: string): Promise<Session | null>;
-  /** Lấy danh sách buổi học của một giáo viên (dạy chính hoặc dạy thay) */
-  listByTeacher(teacherId: string): Promise<Session[]>;
-  /** Cập nhật thông tin buổi học */
-  update(sessionId: string, patch: UpdateSessionInput): Promise<Session>;
-  /** Đổi lịch buổi học */
-  reschedule(sessionId: string, toDate: Date, note?: string, changedBy?: string): Promise<Session>;
-  /** Kiểm tra xem ngày đó lớp đã có buổi học chưa */
-  existsByClassAndDate(classId: string, date: Date): Promise<boolean>;
-  /** Xóa toàn bộ buổi học của một lớp (dùng khi replace generate). Trả về số dòng đã xóa. */
-  deleteByClassId(classId: string): Promise<number>;
   /**
-   * Cập nhật main_teacher_id cho các buổi có session_date >= fromDate.
-   * Dùng cho đổi giáo viên dài hạn (từ ngày X trở đi).
-   * Trả về số buổi đã cập nhật.
+   * Buổi học thứ 24 của lớp gắn với enrollment (khóa học).
+   * Dùng validate ngày học bù phải trước buổi cuối khóa.
    */
-  updateMainTeacherForSessionsFromDate(
+  findLastSessionOfEnrollment(enrollmentId: string): Promise<SessionEntity | null>;
+
+  /** MIN(session_no) trong lớp cho buổi còn pending; null nếu không có dòng pending */
+  getFirstPendingSessionNo(classId: string, executor?: SessionDbExecutor): Promise<number | null>;
+
+  /** Gán teacher_id mới cho mọi buổi pending từ fromSessionNo trở đi */
+  updateTeacherFromSession(
     classId: string,
-    fromDate: Date,
-    mainTeacherId: string | null
-  ): Promise<number>;
+    fromSessionNo: number,
+    newTeacherId: string,
+    executor?: SessionDbExecutor,
+  ): Promise<void>;
+}
+
+export interface ISessionCoverRepo {
+  findBySession(sessionId: string): Promise<SessionCoverEntity | null>;
+  findAvailableTeachers(sessionId: string): Promise<any[]>;
+  findCoversByTeacher(teacherId: string, month: number, year: number): Promise<any[]>;
+  create(data: Partial<SessionCoverEntity>): Promise<SessionCoverEntity>;
+  updateStatus(sessionId: string, status: string): Promise<boolean>;
 }

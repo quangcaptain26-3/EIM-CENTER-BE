@@ -1,50 +1,85 @@
 import jwt from 'jsonwebtoken';
+import { env } from '../../config/env';
 
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'access-secret-key-dev';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-dev';
-const JWT_ACCESS_EXPIRATION = process.env.JWT_ACCESS_EXPIRATION || '15m'; // AccessToken expiry ngắn
-const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d'; // Refresh dài
-
-export interface JwtPayload {
+interface AccessPayload {
   userId: string;
-  roles: string[];
-  permissions: string[];
+  role: string;
 }
 
-export const JwtProvider = {
-  /**
-   * Tạo Access Token với thời hạn ngắn
-   * Dùng để xác thực ở header Authorization: Bearer <token>
-   */
-  signAccessToken(payload: JwtPayload): string {
-    return jwt.sign({ ...payload }, JWT_ACCESS_SECRET, { 
-      expiresIn: JWT_ACCESS_EXPIRATION as any 
-    });
-  },
+interface RefreshPayload {
+  userId: string;
+}
 
-  /**
-   * Tạo Refresh Token với thời hạn dài
-   * Dùng để trao đổi lấy Access Token mới thay vì bắt user login lại
-   */
-  signRefreshToken(payload: JwtPayload): string {
-    return jwt.sign({ ...payload }, JWT_REFRESH_SECRET, { 
-      expiresIn: JWT_REFRESH_EXPIRATION as any 
-    });
-  },
+/** Payload sau khi verify refresh token (có exp để ghi session). */
+export interface VerifiedRefreshPayload extends RefreshPayload {
+  /** Unix timestamp (giây), từ claim JWT `exp` */
+  exp: number;
+}
 
-  /**
-   * Xác thực và giải mã Access Token
-   * @throws Quăng lỗi nếu token hết hạn hoặc format không chính xác
-   */
-  verifyAccessToken(token: string): JwtPayload {
-    return jwt.verify(token, JWT_ACCESS_SECRET) as JwtPayload;
-  },
+/**
+ * Thin wrapper around jsonwebtoken.
+ * All secret/TTL configuration is read from env at construction time.
+ */
+export class JwtProvider {
+  private readonly accessSecret: string;
+  private readonly refreshSecret: string;
+  private readonly accessTtl: string;
+  private readonly refreshTtl: string;
 
-  /**
-   * Xác thực và giải mã Refresh Token
-   * @throws Quăng lỗi nếu token hết hạn hoặc format không chính xác
-   */
-  verifyRefreshToken(token: string): JwtPayload {
-    return jwt.verify(token, JWT_REFRESH_SECRET) as JwtPayload;
+  constructor() {
+    this.accessSecret = env.JWT_ACCESS_SECRET;
+    this.refreshSecret = env.JWT_REFRESH_SECRET;
+    this.accessTtl = env.JWT_ACCESS_TTL;
+    this.refreshTtl = env.JWT_REFRESH_TTL;
   }
-};
+
+  /** Signs a short-lived access token containing userId and role. */
+  signAccess(payload: AccessPayload): string {
+    return jwt.sign(payload, this.accessSecret, {
+      expiresIn: this.accessTtl as jwt.SignOptions['expiresIn'],
+    });
+  }
+
+  /** Signs a long-lived refresh token containing only userId. */
+  signRefresh(payload: RefreshPayload): string {
+    return jwt.sign(payload, this.refreshSecret, {
+      expiresIn: this.refreshTtl as jwt.SignOptions['expiresIn'],
+    });
+  }
+
+  /**
+   * Verifies an access token.
+   * Returns the decoded payload on success, or null if the token is
+   * expired, malformed, or has an invalid signature.
+   */
+  verifyAccess(token: string): AccessPayload | null {
+    try {
+      const decoded = jwt.verify(token, this.accessSecret) as AccessPayload & {
+        iat?: number;
+        exp?: number;
+      };
+      return { userId: decoded.userId, role: decoded.role };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Verifies a refresh token.
+   * Returns userId và exp (hết hạn) — cần exp để INSERT user_sessions.expires_at.
+   */
+  verifyRefresh(token: string): VerifiedRefreshPayload | null {
+    try {
+      const decoded = jwt.verify(
+        token,
+        this.refreshSecret,
+      ) as RefreshPayload & { iat?: number; exp?: number };
+      if (decoded.exp === undefined) {
+        return null;
+      }
+      return { userId: decoded.userId, exp: decoded.exp };
+    } catch {
+      return null;
+    }
+  }
+}

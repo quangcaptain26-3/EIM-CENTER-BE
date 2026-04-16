@@ -1,215 +1,243 @@
-import { EnrollmentRepoPort } from "../../../domain/students/repositories/enrollment.repo.port";
-import { ClassRepoPort } from "../../../domain/classes/repositories/class.repo.port";
-import { InvoiceRepoPort } from "../../../domain/finance/repositories/invoice.repo.port";
-import { TransferEnrollmentBody } from "../dtos/enrollment.dto";
-import { StudentsMapper } from "../mappers/students.mapper";
-import { AppError } from "../../../shared/errors/app-error";
-import type { Pool, PoolClient } from "pg";
-import type { EnrollmentEligibilityService } from "../services/enrollment-eligibility.service";
-import type { CreateInvoiceUseCase } from "../../finance/usecases/create-invoice.usecase";
-import { canEnroll } from "../../../domain/classes/services/class-capacity.rule";
+import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
+import { TransferEnrollmentSchema } from '../dtos/enrollment.dto';
+import { generateEimCode } from '../../../shared/utils/eim-code';
+import { amountToWordsVi } from '../../../shared/utils/amount-to-words';
+import { AppError } from '../../../shared/errors/app-error';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
+
+type Actor = { id: string; role: string; ip?: string };
 
 /**
- * UseCase chuyển lớp giữa chừng (cùng chương trình).
- * - Enrollment cũ → status TRANSFERRED, end_date = effectiveDate.
- * - Enrollment mới tạo với current_unit_no, current_lesson_no (lớp mới biết học sinh học đến đâu).
- * - Lưu ngày chuyển, lý do, người thực hiện vào enrollment_history.
- * - Feedback/score gắn session+student — không ảnh hưởng khi chuyển lớp.
+ * POST /enrollments/transfer — chuyển nhượng học phí từ HV A (enrollment nguồn) sang HV B, ghi danh B vào lớp đích.
+ * Toàn bộ trong một transaction.
  */
 export class TransferEnrollmentUseCase {
-  constructor(
-    private readonly enrollmentRepo: EnrollmentRepoPort,
-    private readonly classRepo: ClassRepoPort,
-    private readonly dbPool: Pool,
-    private readonly eligibilityService: EnrollmentEligibilityService,
-    private readonly invoiceRepo: InvoiceRepoPort,
-    private readonly createInvoiceUseCase: CreateInvoiceUseCase,
-  ) {}
+  constructor(private readonly db: Pool) {}
 
-  async execute(id: string, input: TransferEnrollmentBody, actorUserId?: string) {
-    // 1. Resolve toClassId (ưu tiên toClassCode)
-    let toClassId: string;
-    if (input.toClassCode?.trim()) {
-      const cls = await this.classRepo.findByCode(input.toClassCode.trim());
-      if (!cls) {
-        throw AppError.notFound(`Không tìm thấy lớp học đích với mã: ${input.toClassCode.trim()}`);
-      }
-      toClassId = cls.id;
-    } else if (input.toClassId) {
-      toClassId = input.toClassId;
-    } else {
-      throw AppError.badRequest("Cần cung cấp toClassId hoặc toClassCode (mã lớp đích)");
+  async execute(body: unknown, actor: Actor) {
+    if (!['ADMIN', 'ACADEMIC'].includes(actor.role)) {
+      throw new AppError(
+        ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
+        'Chỉ ADMIN hoặc ACADEMIC mới thực hiện chuyển nhượng học phí',
+        403,
+      );
     }
 
-    const client = await this.dbPool.connect();
+    const { fromEnrollmentId, toStudentId, toClassId } = TransferEnrollmentSchema.parse(body);
+
+    const client = await this.db.connect();
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
 
-      // 2. Lấy enrollment cũ
-      const oldEnrollment = await this.enrollmentRepo.findById(id, { tx: client });
-      if (!oldEnrollment) {
-        throw AppError.notFound(`Không tìm thấy bản ghi danh gốc với ID: ${id}`);
-      }
-
-      if (oldEnrollment.status !== "ACTIVE" && oldEnrollment.status !== "PAUSED") {
-        throw AppError.badRequest(
-          `Chỉ có thể chuyển lớp với bản ghi ACTIVE hoặc PAUSED. Hiện tại: ${oldEnrollment.status}`,
+      const enrRes = await client.query(
+        `SELECT * FROM enrollments WHERE id = $1 FOR UPDATE`,
+        [fromEnrollmentId],
+      );
+      const fromRow = enrRes.rows[0] as Record<string, unknown> | undefined;
+      if (!fromRow || String(fromRow.status) !== 'active') {
+        throw new AppError(
+          ERROR_CODES.ENROLLMENT_NOT_FOUND,
+          'Enrollment not found or not active',
+          404,
         );
       }
 
-      if (oldEnrollment.classId === toClassId) {
-        throw AppError.badRequest("Lớp chuyển đến trùng với lớp hiện tại");
+      const fromStudentId = String(fromRow.student_id);
+      const fromClassId = String(fromRow.class_id);
+      const fromProgramId = String(fromRow.program_id);
+      const tuitionFee = Number(fromRow.tuition_fee);
+      const sessionsAttended = Number(fromRow.sessions_attended ?? 0);
+
+      if (fromStudentId === toStudentId) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Không thể chuyển nhượng cho cùng một học viên', 422);
       }
 
-      // 3. Chặn nếu học viên còn nợ quá hạn
-      const hasOverdue = await this.eligibilityService.studentHasOverdue(oldEnrollment.studentId);
-      if (hasOverdue) {
-        throw AppError.badRequest(
-          "Học viên có hóa đơn quá hạn chưa thanh toán. Vui lòng xử lý nợ trước khi chuyển lớp.",
-          { code: "ENROLLMENT_BLOCKED_OVERDUE", studentId: oldEnrollment.studentId },
+      const fromStudentRes = await client.query(`SELECT id, full_name, is_active FROM students WHERE id = $1`, [
+        fromStudentId,
+      ]);
+      const fromStudent = fromStudentRes.rows[0] as { full_name: string } | undefined;
+      if (!fromStudent) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Học viên nguồn không tồn tại', 404);
+      }
+
+      const toStudentRes = await client.query(`SELECT id, full_name, is_active FROM students WHERE id = $1`, [
+        toStudentId,
+      ]);
+      const toStudent = toStudentRes.rows[0] as { full_name: string; is_active: boolean } | undefined;
+      if (!toStudent) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Học viên nhận không tồn tại', 404);
+      }
+      if (!toStudent.is_active) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Học viên nhận không còn hoạt động', 422);
+      }
+
+      const classRes = await client.query(`SELECT * FROM classes WHERE id = $1`, [toClassId]);
+      const toClass = classRes.rows[0] as { id: string; program_id: string; status: string; max_capacity: number } | undefined;
+      if (!toClass) {
+        throw new AppError(ERROR_CODES.CLASS_NOT_FOUND, 'Lớp đích không tồn tại', 404);
+      }
+      if (!['pending', 'active'].includes(toClass.status)) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Lớp đích không ở trạng thái nhận học viên', 422);
+      }
+
+      const activeOther = await client.query(
+        `SELECT id FROM enrollments WHERE student_id = $1 AND status IN ('trial','active','paused') LIMIT 1`,
+        [toStudentId],
+      );
+      if (activeOther.rows[0]) {
+        throw new AppError(
+          ERROR_CODES.ENROLLMENT_ALREADY_ACTIVE,
+          'Học viên nhận đang có ghi danh đang hiệu lực — không thể nhận chuyển nhượng',
+          422,
         );
       }
 
-      const effectiveDate = input.effectiveDate ? new Date(input.effectiveDate) : new Date();
-      effectiveDate.setHours(0, 0, 0, 0);
-
-      // 4. Validate lớp đích: tồn tại, ACTIVE, CÙNG CHƯƠNG TRÌNH, còn capacity
-      const targetClassRes = await client.query(
-        `SELECT c.id, c.status, c.capacity, c.program_id
-         FROM classes c
-         WHERE c.id = $1 FOR UPDATE`,
+      const capRes = await client.query(
+        `SELECT COUNT(*)::int AS c FROM enrollments WHERE class_id = $1 AND status IN ('trial','active')`,
         [toClassId],
       );
-      if (targetClassRes.rows.length === 0) {
-        throw AppError.notFound("Không tìm thấy lớp học đích để chuyển");
-      }
-      const targetClass = targetClassRes.rows[0] as { status: string; capacity: number; program_id: string };
-
-      if (targetClass.status !== "ACTIVE") {
-        throw AppError.badRequest(
-          `Chỉ được chuyển vào lớp ACTIVE. Trạng thái hiện tại: ${targetClass.status}`,
-        );
+      const activeInClass = Number(capRes.rows[0]?.c ?? 0);
+      if (activeInClass >= Number(toClass.max_capacity)) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Lớp đích đã đủ sĩ số', 422);
       }
 
-      // Chuyển lớp = cùng chương trình — lấy program_id lớp cũ
-      const fromClassRes = await client.query(
-        `SELECT program_id FROM classes WHERE id = $1`,
-        [oldEnrollment.classId],
+      const sessionsRemaining = 24 - sessionsAttended;
+      if (sessionsRemaining <= 0) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Không còn buổi học để chuyển nhượng', 422);
+      }
+
+      const amountTransferred = Math.floor((tuitionFee * sessionsRemaining) / 24);
+      if (amountTransferred <= 0) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Số tiền chuyển nhượng không hợp lệ', 422);
+      }
+
+      const transferGroupId = randomUUID();
+      const newEnrollmentId = randomUUID();
+
+      const toProgramId = String(toClass.program_id);
+
+      const debitReceiptCode = generateEimCode('PT');
+      const debitReceipt = await client.query(
+        `INSERT INTO receipts (
+           receipt_code, payer_name, student_id, enrollment_id, reason, amount, amount_in_words,
+           payment_method, payment_date, created_by, transfer_group_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,'transfer', CURRENT_DATE, $8,$9)
+         RETURNING id`,
+        [
+          debitReceiptCode,
+          fromStudent.full_name,
+          fromStudentId,
+          fromEnrollmentId,
+          'Chuyển nhượng học phí',
+          -amountTransferred,
+          amountToWordsVi(-amountTransferred),
+          actor.id,
+          transferGroupId,
+        ],
       );
-      if (fromClassRes.rows.length === 0 || fromClassRes.rows[0].program_id !== targetClass.program_id) {
-        throw AppError.badRequest("Chỉ được chuyển sang lớp cùng chương trình. Chuyển khác chương trình dùng Promotion.", {
-          code: "TRANSFER_DIFFERENT_PROGRAM",
-        });
-      }
+      const debitReceiptId = String((debitReceipt.rows[0] as { id: string }).id);
 
-      // 5. Kiểm tra capacity bằng class-capacity.rule, trả 409 nếu đầy
-      const countRes = await client.query(
-        `SELECT COUNT(*)::INT AS cnt FROM enrollments WHERE class_id = $1 AND status = 'ACTIVE'`,
-        [toClassId],
-      );
-      const activeCount = Number(countRes.rows[0]?.cnt ?? 0);
-      if (!canEnroll(activeCount, targetClass.capacity)) {
-        throw AppError.conflict("Lớp đích đã đạt giới hạn học viên (capacity)", {
-          code: "CLASS_FULL",
-          capacity: targetClass.capacity,
-        });
-      }
-
-      // 6. Lấy unit_no, lesson_no tại thời điểm chuyển (buổi học cuối của lớp cũ trước effectiveDate)
-      let transferUnitNo: number | null = null;
-      let transferLessonNo: number | null = null;
-      const lastSessionRes = await client.query(
-        `SELECT unit_no, lesson_no FROM sessions
-         WHERE class_id = $1 AND session_date <= $2
-         ORDER BY session_date DESC, unit_no DESC, lesson_no DESC
-         LIMIT 1`,
-        [oldEnrollment.classId, effectiveDate],
-      );
-      if (lastSessionRes.rows.length > 0) {
-        transferUnitNo = lastSessionRes.rows[0].unit_no;
-        transferLessonNo = lastSessionRes.rows[0].lesson_no;
-      }
-
-      // 7. Cancel các invoice mở trên enrollment cũ
-      const oldInvoices = await this.invoiceRepo.list({ enrollmentId: id, limit: 100 });
-      const cancellable = ["DRAFT", "ISSUED", "OVERDUE"];
-      for (const inv of oldInvoices) {
-        if (cancellable.includes(inv.status)) {
-          await this.invoiceRepo.updateStatus(inv.id, "CANCELED");
-        }
-      }
-
-      // 8. Đóng enrollment cũ: status = TRANSFERRED, end_date = effectiveDate
       await client.query(
-        `UPDATE enrollments SET end_date = $1, status = 'TRANSFERRED' WHERE id = $2`,
-        [effectiveDate, id],
+        `INSERT INTO enrollments (
+           id, student_id, program_id, class_id, status, tuition_fee, enrolled_at, created_by
+         ) VALUES ($1,$2,$3,$4,'active',$5,now(),$6)`,
+        [newEnrollmentId, toStudentId, toProgramId, toClassId, amountTransferred, actor.id],
       );
-      const noteTransfer = input.note?.trim() || "Chuyển lớp";
-      await this.enrollmentRepo.createHistory(
-        id,
-        oldEnrollment.status,
-        "TRANSFERRED",
-        noteTransfer,
-        {
-          changedBy: actorUserId ?? null,
-          fromClassId: oldEnrollment.classId,
+
+      const creditReceiptCode = generateEimCode('PT');
+      const creditReceipt = await client.query(
+        `INSERT INTO receipts (
+           receipt_code, payer_name, student_id, enrollment_id, reason, amount, amount_in_words,
+           payment_method, payment_date, created_by, transfer_group_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,'transfer', CURRENT_DATE, $8,$9)
+         RETURNING id`,
+        [
+          creditReceiptCode,
+          toStudent.full_name,
+          toStudentId,
+          newEnrollmentId,
+          'Nhận chuyển nhượng học phí',
+          amountTransferred,
+          amountToWordsVi(amountTransferred),
+          actor.id,
+          transferGroupId,
+        ],
+      );
+      const creditReceiptId = String((creditReceipt.rows[0] as { id: string }).id);
+
+      await client.query(`UPDATE enrollments SET status = 'transferred', updated_at = now() WHERE id = $1`, [
+        fromEnrollmentId,
+      ]);
+
+      await client.query(
+        `INSERT INTO enrollment_history (
+           enrollment_id, action, from_status, to_status,
+           from_class_id, to_class_id, from_program_id, to_program_id,
+           sessions_at_action, changed_by, note
+         ) VALUES ($1,'transferred_out','active','transferred',$2,$3,$4,$5,$6,$7,$8)`,
+        [
+          fromEnrollmentId,
+          fromClassId,
           toClassId,
-          transferUnitNo,
-          transferLessonNo,
-        },
-        { tx: client },
+          fromProgramId,
+          toProgramId,
+          sessionsAttended,
+          actor.id,
+          `Chuyển nhượng học phí sang học viên ${toStudent.full_name}`,
+        ],
       );
 
-      // 9. Tạo enrollment mới — start_date = effectiveDate, current_unit_no/lesson_no để lớp mới biết tiến độ
-      const newEnrollment = await this.enrollmentRepo.create(
-        {
-          studentId: oldEnrollment.studentId,
-          classId: toClassId,
-          status: "ACTIVE",
-          startDate: effectiveDate,
-          currentUnitNo: transferUnitNo,
-          currentLessonNo: transferLessonNo,
-        },
-        { tx: client },
-      );
-      await this.enrollmentRepo.createHistory(
-        newEnrollment.id,
-        "ACTIVE",
-        "ACTIVE",
-        `Chuyển lớp từ ${oldEnrollment.classId ?? "?"} — ${noteTransfer}`,
-        {
-          changedBy: actorUserId ?? null,
-          fromClassId: oldEnrollment.classId,
+      await client.query(
+        `INSERT INTO enrollment_history (
+           enrollment_id, action, from_status, to_status,
+           from_class_id, to_class_id, from_program_id, to_program_id,
+           sessions_at_action, changed_by, note
+         ) VALUES ($1,'transferred_in',NULL,'active',$2,$3,$4,$5,0,$6,$7)`,
+        [
+          newEnrollmentId,
+          fromClassId,
           toClassId,
-        },
-        { tx: client },
+          fromProgramId,
+          toProgramId,
+          actor.id,
+          `Nhận chuyển nhượng từ enrollment ${fromEnrollmentId}`,
+        ],
       );
 
-      await client.query("COMMIT");
+      await client.query(
+        `INSERT INTO transfer_requests (
+           from_student_id, to_student_id, from_enrollment_id, to_enrollment_id,
+           sessions_remaining, amount_transferred, status,
+           debit_receipt_id, credit_receipt_id, processed_by, processed_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,'completed',$7,$8,$9,now())`,
+        [
+          fromStudentId,
+          toStudentId,
+          fromEnrollmentId,
+          newEnrollmentId,
+          sessionsRemaining,
+          amountTransferred,
+          debitReceiptId,
+          creditReceiptId,
+          actor.id,
+        ],
+      );
 
-      // 10. Tạo invoice mới cho enrollment mới (sau commit)
-      try {
-        const dueDate = new Date(effectiveDate);
-        dueDate.setDate(dueDate.getDate() + 30);
-        await this.createInvoiceUseCase.execute({
-          enrollmentId: newEnrollment.id,
-          dueDate: dueDate.toISOString().slice(0, 10),
-        });
-      } catch (err) {
-        console.warn(`[Transfer] Không tạo được invoice cho enrollment mới ${newEnrollment.id}:`, err);
-      }
+      await client.query('COMMIT');
 
       return {
-        oldEnrollment: StudentsMapper.toEnrollmentResponse({
-          ...oldEnrollment,
-          status: "TRANSFERRED",
-          endDate: effectiveDate,
-        }),
-        newEnrollment: StudentsMapper.toEnrollmentResponse(newEnrollment),
+        success: true,
+        transferGroupId,
+        amountTransferred,
+        sessionsRemaining,
+        newEnrollmentId,
+        debitReceiptId,
+        creditReceiptId,
       };
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
     } finally {
       client.release();
     }

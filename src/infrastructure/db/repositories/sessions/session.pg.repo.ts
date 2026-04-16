@@ -1,292 +1,129 @@
-import { Pool } from "pg";
-import { Session } from "../../../../domain/sessions/entities/session.entity";
-import { ISessionRepository, CreateSessionInput, UpdateSessionInput } from "../../../../domain/sessions/repositories/session.repo.port";
+import {
+  ISessionRepo,
+  SessionDbExecutor,
+} from '../../../../domain/sessions/repositories/session.repo.port';
+import { SessionEntity } from '../../../../domain/sessions/entities/session.entity';
 
-export class PostgresSessionRepository implements ISessionRepository {
-  constructor(private readonly pool: Pool) {}
+export class SessionPgRepo implements ISessionRepo {
+  constructor(private readonly db: SessionDbExecutor) {}
 
-  /**
-   * Tạo nhiều buổi học an toàn với transaction
-   */
-  async createMany(inputs: CreateSessionInput[]): Promise<Session[]> {
-    if (inputs.length === 0) return [];
-
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      
-      const createdSessions: Session[] = [];
-      
-      for (const input of inputs) {
-        const query = `
-          INSERT INTO sessions (class_id, session_date, session_status, unit_no, lesson_no, lesson_pattern, session_type, main_teacher_id, cover_teacher_id)
-          VALUES ($1, $2, 'SCHEDULED', $3, $4, $5, $6, $7, $8)
-          RETURNING *;
-        `;
-        const values = [
-          input.classId,
-          input.sessionDate,
-          input.unitNo,
-          input.lessonNo,
-          input.lessonPattern ?? null,
-          input.sessionType,
-          input.mainTeacherId || null,
-          input.coverTeacherId || null,
-        ];
-        
-        const result = await client.query(query, values);
-        createdSessions.push(this.mapToEntity(result.rows[0]));
-      }
-
-      await client.query("COMMIT");
-      return createdSessions;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+  async findById(id: string): Promise<SessionEntity | null> {
+    const res = await this.db.query(`SELECT * FROM sessions WHERE id = $1`, [id]);
+    if (!res.rows[0]) return null;
+    return new SessionEntity(res.rows[0]);
   }
 
-  /**
-   * Lấy danh sách buổi học của một lớp, sắp xếp theo session_date tăng dần
-   */
-  async listByClass(classId: string): Promise<Session[]> {
-    const query = `
-      SELECT * FROM sessions
-      WHERE class_id = $1
-      ORDER BY session_date ASC;
-    `;
-    const result = await this.pool.query(query, [classId]);
-    return result.rows.map(this.mapToEntity);
+  async findByClass(classId: string): Promise<SessionEntity[]> {
+    const res = await this.db.query(`SELECT * FROM sessions WHERE class_id = $1 ORDER BY session_no ASC`, [classId]);
+    return res.rows.map((r: any) => new SessionEntity(r));
   }
 
-  /**
-   * Lấy danh sách buổi học của một lớp theo khoảng ngày (lọc ở DB).
-   * Dùng cho các luồng export để giảm fetch dư và tránh lọc in-memory quá lớn.
-   */
-  async listByClassInRange(
-    classId: string,
-    params?: { fromDate?: Date; toDate?: Date; limit?: number },
-  ): Promise<Session[]> {
-    const conditions: string[] = ["class_id = $1"];
-    const values: unknown[] = [classId];
-    let paramIndex = 2;
-
-    if (params?.fromDate) {
-      conditions.push(`session_date >= $${paramIndex++}`);
-      values.push(params.fromDate);
-    }
-
-    if (params?.toDate) {
-      conditions.push(`session_date <= $${paramIndex++}`);
-      values.push(params.toDate);
-    }
-
-    let limitClause = "";
-    if (params?.limit && params.limit > 0) {
-      limitClause = `LIMIT $${paramIndex++}`;
-      values.push(params.limit);
-    }
-
-    const query = `
-      SELECT * FROM sessions
-      WHERE ${conditions.join(" AND ")}
-      ORDER BY session_date ASC
-      ${limitClause};
-    `;
-
-    const result = await this.pool.query(query, values);
-    return result.rows.map(this.mapToEntity);
+  async findByTeacher(teacherId: string, month: number, year: number): Promise<SessionEntity[]> {
+    const res = await this.db.query(
+      `SELECT * FROM sessions WHERE teacher_id = $1 
+       AND EXTRACT(MONTH FROM session_date) = $2
+       AND EXTRACT(YEAR FROM session_date) = $3
+       ORDER BY session_date ASC`,
+      [teacherId, month, year]
+    );
+    return res.rows.map((r: any) => new SessionEntity(r));
   }
 
-  /**
-   * Lấy danh sách buổi học của một giáo viên (dạy chính hoặc dạy thay)
-   */
-  async listByTeacher(teacherId: string): Promise<Session[]> {
-    const query = `
-      SELECT * FROM sessions
-      WHERE main_teacher_id = $1 OR cover_teacher_id = $1
-      ORDER BY session_date DESC;
-    `;
-    const result = await this.pool.query(query, [teacherId]);
-    return result.rows.map(this.mapToEntity);
-  }
-
-  /**
-   * Tìm buổi học theo ID
-   */
-  async findById(sessionId: string): Promise<Session | null> {
-    const query = `
-      SELECT * FROM sessions
-      WHERE id = $1;
-    `;
-    const result = await this.pool.query(query, [sessionId]);
-    if (result.rows.length === 0) return null;
-    return this.mapToEntity(result.rows[0]);
-  }
-
-  /**
-   * Cập nhật buổi học
-   */
-  async update(sessionId: string, patch: UpdateSessionInput): Promise<Session> {
-    // Nếu không truyền tham số update nào, ném lỗi hoặc trả về nguyên trạng
-    const fields: string[] = [];
+  async bulkCreate(sessions: Partial<SessionEntity>[]): Promise<SessionEntity[]> {
+    if (!sessions.length) return [];
+    
+    // Parameterized bulk insert
+    const placeholders = sessions.map((_, i) => 
+      `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`
+    ).join(', ');
+    
     const values: any[] = [];
-    let paramIndex = 1;
+    sessions.forEach(s => {
+      values.push(s.classId, s.teacherId, s.sessionNo, s.sessionDate, s.shift, s.status);
+    });
 
-    if (patch.sessionStatus !== undefined) {
-      fields.push(`session_status = $${paramIndex++}`);
-      values.push(patch.sessionStatus);
-    }
-    if (patch.unitNo !== undefined) {
-      fields.push(`unit_no = $${paramIndex++}`);
-      values.push(patch.unitNo);
-    }
-    if (patch.lessonNo !== undefined) {
-      fields.push(`lesson_no = $${paramIndex++}`);
-      values.push(patch.lessonNo);
-    }
-    if (patch.sessionType !== undefined) {
-      fields.push(`session_type = $${paramIndex++}`);
-      values.push(patch.sessionType);
-    }
-    if (patch.lessonPattern !== undefined) {
-      fields.push(`lesson_pattern = $${paramIndex++}`);
-      values.push(patch.lessonPattern);
-    }
-    if (patch.mainTeacherId !== undefined) {
-      fields.push(`main_teacher_id = $${paramIndex++}`);
-      values.push(patch.mainTeacherId);
-    }
-    if (patch.coverTeacherId !== undefined) {
-      fields.push(`cover_teacher_id = $${paramIndex++}`);
-      values.push(patch.coverTeacherId);
-    }
-
-    if (fields.length === 0) {
-      const session = await this.findById(sessionId);
-      if (!session) throw new Error("Session not found");
-      return session;
-    }
-
-    values.push(sessionId);
     const query = `
-      UPDATE sessions
-      SET ${fields.join(", ")}
-      WHERE id = $${paramIndex}
-      RETURNING *;
+      INSERT INTO sessions (class_id, teacher_id, session_no, session_date, shift, status)
+      VALUES ${placeholders}
+      RETURNING *
     `;
-
-    const result = await this.pool.query(query, values);
-    if (result.rows.length === 0) throw new Error("Session not found");
-    return this.mapToEntity(result.rows[0]);
+    
+    const res = await this.db.query(query, values);
+    return res.rows.map((r: any) => new SessionEntity(r));
   }
 
-  /**
-   * Đổi lịch học (Từ ngày cũ sang ngày mới)
-   */
-  async reschedule(sessionId: string, toDate: Date, note?: string, changedBy?: string): Promise<Session> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+  async update(id: string, data: any): Promise<SessionEntity> {
+    const sets: string[] = [];
+    const values: any[] = [];
+    let i = 1;
 
-      // Lấy trạng thái hiện tại của session
-      const fetchQuery = `SELECT * FROM sessions WHERE id = $1 FOR UPDATE`;
-      const fetchResult = await client.query(fetchQuery, [sessionId]);
-      
-      if (fetchResult.rows.length === 0) {
-        throw new Error("Session not found");
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        // Convert camelCase mapping safely
+        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+        sets.push(`${snakeKey} = $${i}`);
+        values.push(value);
+        i++;
       }
-      
-      const sessionRow = fetchResult.rows[0];
-      const fromDate = sessionRow.session_date;
-
-      // Update session hiện tại với ngày mới
-      const updateQuery = `
-        UPDATE sessions
-        SET session_date = $1
-        WHERE id = $2
-        RETURNING *;
-      `;
-      const updateResult = await client.query(updateQuery, [toDate, sessionId]);
-      const updatedSession = updateResult.rows[0];
-
-      // Insert dữ liệu vào session_reschedules
-      const historyQuery = `
-        INSERT INTO session_reschedules (session_id, from_date, to_date, note, changed_by)
-        VALUES ($1, $2, $3, $4, $5);
-      `;
-      await client.query(historyQuery, [sessionId, fromDate, toDate, note || null, changedBy || null]);
-
-      await client.query("COMMIT");
-      return this.mapToEntity(updatedSession);
-    } catch (error: any) {
-      await client.query("ROLLBACK");
-      // Nếu vi phạm UNIQUE(class_id, session_date)
-      if (error.code === '23505' && error.constraint === 'sessions_class_id_session_date_key') {
-         throw new Error("CONFLICT_SESSION_DATE"); 
-      }
-      throw error;
-    } finally {
-      client.release();
     }
+
+    if (sets.length === 0) throw new Error('No data to update');
+
+    values.push(id);
+    const query = `UPDATE sessions SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING *`;
+    const res = await this.db.query(query, values);
+    return new SessionEntity(res.rows[0] as Partial<SessionEntity>);
   }
 
-  /**
-   * Kiểm tra ngày truyền vào của lớp đó đã có buổi học nào chưa
-   */
-  async existsByClassAndDate(classId: string, date: Date): Promise<boolean> {
-    const query = `
-      SELECT 1 FROM sessions
-      WHERE class_id = $1 AND session_date = $2
-      LIMIT 1;
-    `;
-    const result = await this.pool.query(query, [classId, date]);
-    return result.rows.length > 0;
+  async findLastSessionOfEnrollment(enrollmentId: string): Promise<SessionEntity | null> {
+    const res = await this.db.query(
+      `
+      SELECT s.*
+      FROM sessions s
+      INNER JOIN enrollments e ON e.class_id = s.class_id AND e.id = $1
+      WHERE s.session_no = 24
+      LIMIT 1
+      `,
+      [enrollmentId],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return new SessionEntity({
+      id: row.id as string,
+      classId: row.class_id as string,
+      teacherId: row.teacher_id as string,
+      sessionNo: Number(row.session_no),
+      sessionDate: row.session_date as Date,
+      shift: row.shift as 1 | 2,
+      status: row.status as 'pending' | 'completed' | 'cancelled',
+      sessionNote: row.session_note as string | undefined,
+      originalDate: row.original_date as Date | undefined,
+      rescheduleReason: row.reschedule_reason as string | undefined,
+      rescheduledBy: row.rescheduled_by as string | undefined,
+      createdAt: row.created_at as Date,
+    });
   }
 
-  async deleteByClassId(classId: string): Promise<number> {
-    const result = await this.pool.query(
-      `DELETE FROM sessions WHERE class_id = $1`,
+  async getFirstPendingSessionNo(classId: string, executor: SessionDbExecutor = this.db): Promise<number | null> {
+    const res = await executor.query(
+      `SELECT MIN(session_no) AS m FROM sessions WHERE class_id = $1 AND status = 'pending'`,
       [classId],
     );
-    return result.rowCount ?? 0;
+    const row = res.rows[0] as { m?: number | string | null } | undefined;
+    const m = row?.m;
+    if (m === null || m === undefined) return null;
+    return typeof m === 'number' ? m : parseInt(String(m), 10);
   }
 
-  /**
-   * Cập nhật main_teacher_id cho các buổi có session_date >= fromDate.
-   */
-  async updateMainTeacherForSessionsFromDate(
+  async updateTeacherFromSession(
     classId: string,
-    fromDate: Date,
-    mainTeacherId: string | null
-  ): Promise<number> {
-    const result = await this.pool.query(
-      `UPDATE sessions
-       SET main_teacher_id = $1
-       WHERE class_id = $2 AND session_date >= $3`,
-      [mainTeacherId, classId, fromDate],
+    fromSessionNo: number,
+    newTeacherId: string,
+    executor: SessionDbExecutor = this.db,
+  ): Promise<void> {
+    await executor.query(
+      `UPDATE sessions SET teacher_id = $3 WHERE class_id = $1 AND session_no >= $2 AND status = 'pending'`,
+      [classId, fromSessionNo, newTeacherId],
     );
-    return result.rowCount ?? 0;
-  }
-
-  /**
-   * Ánh xạ từ DB Row sang Session Entity
-   */
-  private mapToEntity(row: any): Session {
-    return {
-      id: row.id,
-      classId: row.class_id,
-      sessionDate: row.session_date,
-      sessionStatus: (row.session_status as Session["sessionStatus"]) ?? "SCHEDULED",
-      unitNo: row.unit_no,
-      lessonNo: row.lesson_no,
-      lessonPattern: row.lesson_pattern ?? null,
-      sessionType: row.session_type,
-      mainTeacherId: row.main_teacher_id,
-      coverTeacherId: row.cover_teacher_id,
-      createdAt: row.created_at,
-    };
   }
 }

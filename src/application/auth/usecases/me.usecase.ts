@@ -1,20 +1,16 @@
-import { UserRepoPort } from '../../../domain/auth/repositories/user.repo.port';
-import { AuthMapper } from '../mappers/auth.mapper';
+import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
+import { toUserResponse } from '../mappers/auth.mapper';
 
 export class MeUseCase {
-  constructor(private readonly userRepo: UserRepoPort) {}
+  constructor(private readonly userRepo: IUserRepo) {}
 
   async execute(userId: string) {
-    if (!userId) {
-      throw AppError.unauthorized('Thiếu User ID hợp lệ');
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new AppError(ERROR_CODES.USER_NOT_FOUND, 'User not found', 404);
     }
-
-    const authInfo = await this.userRepo.getUserAuthInfo(userId);
-    if (!authInfo) {
-      throw AppError.notFound('Người dùng không tồn tại');
-    }
-
-    return AuthMapper.toProfile(authInfo.user, authInfo.roles, authInfo.permissions);
+    return toUserResponse(user);
   }
 }

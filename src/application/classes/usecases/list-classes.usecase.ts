@@ -1,21 +1,21 @@
-import { ClassRepoPort } from "../../../domain/classes/repositories/class.repo.port";
-import { ListClassesQuery } from "../dtos/class.dto";
-import { ClassMapper } from "../mappers/classes.mapper";
+import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 
 export class ListClassesUseCase {
-  constructor(private readonly classRepo: ClassRepoPort) {}
+  constructor(private readonly classRepo: IClassRepo) {}
 
-  async execute(query: ListClassesQuery) {
-    const [items, total] = await Promise.all([
-      this.classRepo.list(query),
-      this.classRepo.count(query),
-    ]);
-
-    return {
-      items: items.map((c) => ClassMapper.toResponse(c)),
-      total,
-      limit: query.limit,
-      offset: query.offset,
-    };
+  async execute(
+    filter: {
+      programCode?: string;
+      programId?: string;
+      status?: 'pending' | 'active' | 'closed';
+      roomId?: string;
+      teacherId?: string;
+      shift?: 1 | 2;
+      search?: string;
+    },
+    limit: number = 10,
+    offset: number = 0,
+  ) {
+    return await this.classRepo.findAll(filter, { limit, offset });
   }
 }

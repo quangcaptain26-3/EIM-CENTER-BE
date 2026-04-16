@@ -1,23 +1,9 @@
-import { ClassRepoPort } from "../../../domain/classes/repositories/class.repo.port";
-import { RosterRepoPort } from "../../../domain/classes/repositories/roster.repo.port";
-import { ClassMapper } from "../mappers/classes.mapper";
+import { ClassRosterRow, IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
 
 export class GetRosterUseCase {
-  constructor(
-    private readonly classRepo: ClassRepoPort,
-    private readonly rosterRepo: RosterRepoPort
-  ) {}
+  constructor(private readonly enrollmentRepo: IEnrollmentRepo) {}
 
-  async execute(classId: string) {
-    const existingClass = await this.classRepo.findById(classId);
-    if (!existingClass) {
-      throw new Error(`Class ${classId} not found`);
-    }
-
-    const roster = await this.classRepo.findById(classId).then(() => {
-        return this.rosterRepo.listRoster(classId);
-    });
-
-    return roster.map(student => ClassMapper.toRosterResponse(student));
+  async execute(classId: string): Promise<ClassRosterRow[]> {
+    return this.enrollmentRepo.findRosterByClass(classId);
   }
 }

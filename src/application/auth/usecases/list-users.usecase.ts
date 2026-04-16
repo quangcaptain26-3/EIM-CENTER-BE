@@ -1,28 +1,46 @@
-import { UserRepoPort } from '../../../domain/auth/repositories/user.repo.port';
-import { AuthMapper } from '../mappers/auth.mapper';
-import { ListUsersQueryDto } from '../dtos/user-management.dto';
+import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
+import { toUserResponse } from '../mappers/auth.mapper';
+import { buildPaginationParams } from '../../../shared/utils/pagination.util';
 
 export class ListUsersUseCase {
-  constructor(private readonly userRepo: UserRepoPort) {}
+  constructor(private readonly userRepo: IUserRepo) {}
 
-  async execute(query: ListUsersQueryDto) {
-    // Hỗ trợ cả roleCode và role (alias): GET /users?role=teacher&status=active
-    const roleCode = query.roleCode ?? (query.role ? query.role.toUpperCase() : undefined);
-    const { items, total } = await this.userRepo.findAll({
-      search: query.search,
-      roleCode,
-      status: query.status,
+  async execute(query: {
+    roleCode?: string;
+    /** Alias FE hay gửi (vd. ?role=ADMIN) */
+    role?: string;
+    isActive?: string;
+    q?: string;
+    page?: string | number;
+    limit?: string | number;
+  }) {
+    const { page, limit } = buildPaginationParams({
       page: query.page,
       limit: query.limit,
     });
 
-    const mappedItems = items.map(info => AuthMapper.toSystemUser(info.user, info.roles));
+    let isActive: boolean | undefined;
+    if (query.isActive === 'true') isActive = true;
+    else if (query.isActive === 'false') isActive = false;
+
+    const roleCode = query.roleCode ?? query.role;
+
+    const result = await this.userRepo.findAll({
+      roleCode,
+      isActive,
+      search: query.q,
+      page,
+      limit,
+    });
 
     return {
-      items: mappedItems,
-      total,
-      page: query.page,
-      limit: query.limit,
+      data: result.data.map(toUserResponse),
+      meta: {
+        total: result.total,
+        page,
+        limit,
+        totalPages: Math.ceil(result.total / limit),
+      },
     };
   }
 }

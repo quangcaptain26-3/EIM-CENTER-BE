@@ -1,156 +1,85 @@
-import type { NextFunction, Request, Response } from 'express';
-
-import { buildContainer } from '../../../bootstrap/container';
+import { Request, Response, NextFunction } from 'express';
+import { ISessionRepo, ISessionCoverRepo } from '../../../domain/sessions/repositories/session.repo.port';
+import { IPayrollRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
-import { teacherCanWriteSession } from '../../../domain/feedback/services/teacher-ownership.rule';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
-/**
- * Bộ middleware chuyên để khóa IDOR cho các luồng của TEACHER.
- *
- * Quy ước:
- * - Nếu user có role TEACHER (dù kèm các role khác), vẫn phải áp ownership chặt.
- * - Không phụ thuộc vào thứ tự roles để tránh RBAC drift.
- *
- * QUAN TRỌNG — Không check class_staff:
- * - Chỉ check session.mainTeacherId và session.coverTeacherId (teacher_effective_id).
- * - Teacher được gán vào lớp (class_staff) nhưng KHÔNG cover buổi đó → KHÔNG được submit feedback.
- * - Tránh: Teacher A được add class_staff nhưng buổi do Teacher B dạy, A vẫn submit được (IDOR).
- */
-function isTeacher(req: Request): boolean {
-  return Boolean(req.user && Array.isArray(req.user.roles) && req.user.roles.includes('TEACHER'));
+/** ADMIN | ACADEMIC | ACCOUNTANT — full access to session resources (no teacher self-scope). */
+export function isAdminOrStaff(role: string): boolean {
+  return role === 'ADMIN' || role === 'ACADEMIC' || role === 'ACCOUNTANT';
+}
+
+/** Only ADMIN and ACCOUNTANT may read any payroll row; TEACHER must match payroll_records.teacher_id. */
+export function isPayrollPrivileged(role: string): boolean {
+  return role === 'ADMIN' || role === 'ACCOUNTANT';
+}
+
+function sessionMainTeacherId(session: { teacherId?: string; teacher_id?: string } | null): string | undefined {
+  if (!session) return undefined;
+  return session.teacherId ?? session.teacher_id;
 }
 
 /**
- * Chặn teacher truy cập tài nguyên của người khác qua param.
- * Ví dụ: GET /sessions/teacher/:teacherId → teacherId bắt buộc phải == req.user.userId.
+ * TEACHER may only access a session if they are the main teacher or the active cover teacher.
+ * ADMIN / ACADEMIC / ACCOUNTANT bypass.
  */
-export function enforceTeacherSelfParam(paramName: string) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) {
-        throw AppError.unauthorized('Vui lòng đăng nhập để thực hiện hành động này');
-      }
-
-      // Chỉ khóa chặt cho TEACHER để tránh ảnh hưởng các role quản trị.
-      if (!isTeacher(req)) {
-        return next();
-      }
-
-      const targetId = String(req.params[paramName] ?? '');
-      if (!targetId || targetId !== req.user.userId) {
-        throw AppError.forbidden('Giáo viên chỉ được truy cập dữ liệu của chính mình', {
-          code: 'RBAC/TEACHER_SELF_ONLY',
-          paramName,
-          targetId,
-          actorId: req.user.userId,
-        });
-      }
-
-      return next();
-    } catch (error) {
-      return next(error);
+export function requireOwnSession(sessionRepo: ISessionRepo, sessionCoverRepo: ISessionCoverRepo) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(
+        new AppError(ERROR_CODES.AUTH_TOKEN_INVALID, 'User is not authenticated', 401),
+      );
     }
+    const { role, id: userId } = req.user;
+    if (isAdminOrStaff(role)) return next();
+    if (role !== 'TEACHER') {
+      return next(
+        new AppError(ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION, 'Insufficient permission to access this session', 403),
+      );
+    }
+
+    const sessionId = String(req.params.id);
+    const session = await sessionRepo.findById(sessionId);
+    if (!session) {
+      return next(new AppError(ERROR_CODES.NOT_FOUND, 'Session not found', 404));
+    }
+
+    const mainId = sessionMainTeacherId(session as { teacherId?: string; teacher_id?: string });
+    if (mainId === userId) return next();
+
+    const cover = await sessionCoverRepo.findBySession(sessionId);
+    const coverId = cover?.coverTeacherId;
+    if (coverId === userId) return next();
+
+    return next(
+      new AppError(ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION, 'You may only access your own sessions', 403),
+    );
   };
 }
 
 /**
- * Chặn teacher GHI (submit feedback/scores) vào session không do mình dạy.
- * Check teacher_effective_id = coverTeacherId ?? mainTeacherId — KHÔNG dùng class_staff.
- * POST /feedback/upsert, POST /feedback/import, POST /scores/upsert bắt buộc dùng.
+ * GET /payroll/:id — TEACHER must own the payroll row; ADMIN / ACCOUNTANT may read any.
  */
-export async function enforceTeacherOwnsSession(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
-  try {
+export function requireOwnPayroll(payrollRepo: IPayrollRepo) {
+  return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      throw AppError.unauthorized('Vui lòng đăng nhập để thực hiện hành động này');
+      return next(
+        new AppError(ERROR_CODES.AUTH_TOKEN_INVALID, 'User is not authenticated', 401),
+      );
     }
-    if (!isTeacher(req)) {
-      return next();
+    const { role, id: userId } = req.user;
+    if (isPayrollPrivileged(role)) return next();
+
+    const payrollId = String(req.params.id);
+    const payroll = await payrollRepo.findById(payrollId);
+    if (!payroll) {
+      return next(new AppError(ERROR_CODES.PAYROLL_NOT_FOUND, 'Payroll not found', 404));
     }
 
-    const sessionId = String(req.params.sessionId ?? '');
-    if (!sessionId) {
-      throw AppError.badRequest('sessionId is required');
-    }
+    if (role === 'TEACHER' && payroll.teacherId === userId) return next();
 
-    const container = buildContainer();
-    const session = await container.sessions.getSessionUseCase.execute(sessionId);
-
-    const canAccess = teacherCanWriteSession(
-      { mainTeacherId: session.mainTeacherId, coverTeacherId: session.coverTeacherId },
-      req.user.userId,
+    return next(
+      new AppError(ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION, 'You may only access your own payroll records', 403),
     );
-    if (!canAccess) {
-      throw AppError.forbidden('Giáo viên chỉ được truy cập buổi học mình phụ trách', {
-        code: 'RBAC/TEACHER_SESSION_OWNERSHIP_REQUIRED',
-        sessionId,
-        actorId: req.user.userId,
-      });
-    }
-
-    return next();
-  } catch (error) {
-    return next(error);
-  }
+  };
 }
-
-/**
- * Teacher xem feedback (READ): rule lỏng hơn write.
- * Cho phép nếu: (a) main/cover buổi đó, hoặc (b) class_staff của lớp, hoặc (c) main/cover bất kỳ buổi nào trong lớp.
- * Áp dụng cho GET /feedback, GET /feedback/template.
- */
-export async function enforceTeacherCanReadSession(
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) {
-  try {
-    if (!req.user) {
-      throw AppError.unauthorized('Vui lòng đăng nhập để thực hiện hành động này');
-    }
-    if (!isTeacher(req)) {
-      return next();
-    }
-
-    const sessionId = String(req.params.sessionId ?? '');
-    if (!sessionId) {
-      throw AppError.badRequest('sessionId is required');
-    }
-
-    const container = buildContainer();
-    const session = await container.sessions.getSessionUseCase.execute(sessionId);
-    const teacherId = req.user!.userId;
-
-    // (a) Main/cover buổi đó
-    if (teacherCanWriteSession(session, teacherId)) {
-      return next();
-    }
-
-    // (b) Class_staff của lớp
-    const isStaff = await container.classes.classStaffRepo.isTeacherOfClass(teacherId, session.classId);
-    if (isStaff) {
-      return next();
-    }
-
-    // (c) Main/cover bất kỳ buổi nào trong lớp (vd: cover 1 buổi → xem toàn bộ feedback lịch sử)
-    const classSessions = await container.sessions.sessionRepo.listByClass(session.classId);
-    const hasAnySession = classSessions.some(
-      (s) => s.mainTeacherId === teacherId || s.coverTeacherId === teacherId,
-    );
-    if (hasAnySession) {
-      return next();
-    }
-
-    throw AppError.forbidden('Giáo viên không có quyền xem feedback buổi học này', {
-      code: 'RBAC/TEACHER_READ_SESSION_REQUIRED',
-      sessionId,
-      actorId: teacherId,
-    });
-  } catch (error) {
-    return next(error);
-  }
-}
-

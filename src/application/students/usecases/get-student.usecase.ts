@@ -1,15 +1,15 @@
-import { StudentRepoPort } from "../../../domain/students/repositories/student.repo.port";
-import { StudentsMapper } from "../mappers/students.mapper";
-import { AppError } from "../../../shared/errors/app-error";
+import { IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
+import { AppError } from '../../../shared/errors/app-error';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
 export class GetStudentUseCase {
-  constructor(private readonly studentRepo: StudentRepoPort) {}
+  constructor(private readonly studentRepo: IStudentRepo) {}
 
   async execute(id: string) {
     const student = await this.studentRepo.findById(id);
     if (!student) {
-      throw AppError.notFound(`Không tìm thấy học viên với ID: ${id}`);
+      throw new AppError(ERROR_CODES.STUDENT_NOT_FOUND, 'Không tìm thấy học viên', 404);
     }
-    return StudentsMapper.toStudentResponse(student);
+    return student;
   }
 }

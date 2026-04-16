@@ -1,57 +1,104 @@
 import crypto from 'crypto';
-import { UserRepoPort } from '../../../domain/auth/repositories/user.repo.port';
+import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
+import { ISessionRepo } from '../../../domain/auth/repositories/session.repo.port';
+import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { PasswordHasher } from '../../../infrastructure/auth/password-hasher';
 import { JwtProvider } from '../../../infrastructure/auth/jwt.provider';
-import { LoginDto } from '../dtos/login.dto';
 import { AppError } from '../../../shared/errors/app-error';
-import { AuthMapper } from '../mappers/auth.mapper';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
+import { LoginDtoSchema, LoginDto } from '../dtos/auth.dto';
+import { toUserResponse } from '../mappers/auth.mapper';
 
 export class LoginUseCase {
-  constructor(private readonly userRepo: UserRepoPort) {}
+  constructor(
+    private readonly userRepo: IUserRepo,
+    private readonly sessionRepo: ISessionRepo,
+    private readonly auditLogRepo: IAuditLogRepo,
+    private readonly passwordHasher: PasswordHasher,
+    private readonly jwtProvider: JwtProvider,
+  ) {}
 
-  async execute(dto: LoginDto) {
-    // 1. Tìm user theo email
-    const user = await this.userRepo.findByEmail(dto.email);
-    if (!user) {
-      throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
+  async execute(input: LoginDto, ip: string, userAgent: string) {
+    const data = LoginDtoSchema.parse(input);
+
+    // 1. findByEmail -> throw AUTH_INVALID_CREDENTIALS if not found or deleted
+    const user = await this.userRepo.findByEmail(data.email);
+    if (!user || user.isDeleted()) {
+      throw new AppError(
+        ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+        'Invalid email or password',
+        401,
+      );
     }
 
-    // Kiểm tra trạng thái kích hoạt tài khoản
-    if (user.status !== 'ACTIVE') {
-      throw AppError.forbidden('Tài khoản đã bị khóa hoặc chưa kích hoạt');
+    // 2. Check is_active -> throw AUTH_USER_INACTIVE
+    if (!user.isActive) {
+      throw new AppError(
+        ERROR_CODES.AUTH_USER_INACTIVE,
+        'Account is suspended',
+        401,
+      );
     }
 
-    // 2. Kiểm tra mật khẩu
-    const isPasswordValid = await PasswordHasher.compare(dto.password, user.password_hash);
-    if (!isPasswordValid) {
-      throw AppError.unauthorized('Email hoặc mật khẩu không chính xác');
+    // 3. compare password
+    const isMatch = await this.passwordHasher.compare(
+      data.password,
+      user.passwordHash,
+    );
+    if (!isMatch) {
+      throw new AppError(
+        ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+        'Invalid email or password',
+        401,
+      );
     }
 
-    // 3. Lấy thông tin phân quyền của user
-    const authInfo = await this.userRepo.getUserAuthInfo(user.id);
-    if (!authInfo) {
-      throw AppError.internal('Lỗi khi lấy thông tin phân quyền');
+    // 4. signAccess + signRefresh
+    const accessToken = this.jwtProvider.signAccess({
+      userId: user.id,
+      role: user.role.code,
+    });
+    const refreshToken = this.jwtProvider.signRefresh({ userId: user.id });
+
+    // 5. INSERT user_sessions
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+    
+    const decodedRefresh = this.jwtProvider.verifyRefresh(refreshToken);
+    if (!decodedRefresh) {
+      throw new AppError(
+        ERROR_CODES.INTERNAL_ERROR,
+        'Failed to issue refresh session',
+        500,
+      );
     }
+    const expiresAt = new Date(decodedRefresh.exp * 1000);
 
-    const { roles, permissions } = authInfo;
+    await this.sessionRepo.createSession({
+      userId: user.id,
+      tokenHash,
+      ipAddress: ip,
+      userAgent,
+      expiresAt,
+    });
 
-    // 4. Sinh mã Token
-    const payload = { userId: user.id, roles, permissions };
-    const accessToken = JwtProvider.signAccessToken(payload);
-    const refreshToken = JwtProvider.signRefreshToken(payload);
+    // 6. Ghi audit log
+    await this.auditLogRepo.log({
+      action: 'AUTH:login',
+      actorId: user.id,
+      actorCode: user.userCode,
+      actorRole: user.role.code,
+      actorIp: ip,
+      actorAgent: userAgent,
+    });
 
-    // 5. Lưu refresh token (đã hash sha256) vào Database để phòng ngừa lộ token
-    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Mặc định refresh token tồn tại 7 ngày
-
-    await this.userRepo.createRefreshToken(user.id, tokenHash, expiresAt);
-
-    // 6. Trả về kết quả client
+    // 7. Return
     return {
       accessToken,
       refreshToken,
-      user: AuthMapper.toProfile(user, roles, permissions)
+      user: toUserResponse(user),
     };
   }
 }

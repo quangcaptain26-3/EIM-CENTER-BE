@@ -3,139 +3,60 @@ import { LoginUseCase } from '../../../../application/auth/usecases/login.usecas
 import { RefreshUseCase } from '../../../../application/auth/usecases/refresh.usecase';
 import { LogoutUseCase } from '../../../../application/auth/usecases/logout.usecase';
 import { MeUseCase } from '../../../../application/auth/usecases/me.usecase';
-import { buildContainer } from '../../../../bootstrap/container';
-import { JwtProvider } from '../../../../infrastructure/auth/jwt.provider';
 
-export class AuthController {
-  constructor(
-    private readonly loginUseCase: LoginUseCase,
-    private readonly refreshUseCase: RefreshUseCase,
-    private readonly logoutUseCase: LogoutUseCase,
-    private readonly meUseCase: MeUseCase
-  ) {}
-
-  /**
-   * Đăng nhập vào hệ thống
-   * Request (POST /auth/login):
-   * { "email": "admin@eim.edu.vn", "password": "..." }
-   * 
-   * Response:
-   * {
-   *   "success": true,
-   *   "data": { 
-   *       "accessToken": "...", 
-   *       "refreshToken": "...", 
-   *       "user": { "id": "...", "email": "...", "fullName": "...", "roles": [...], "permissions": [...] } 
-   *   }
-   * }
-   */
-  login = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await this.loginUseCase.execute(req.body);
-
-      // Audit & Notification: AUTH_LOGIN
-      // Không log password/token; chỉ log metadata trace tối thiểu.
-      const container = buildContainer();
-      const actorUserId = result.user?.id;
-      if (actorUserId) {
-        await container.system.auditWriter.write(actorUserId, "AUTH_LOGIN", "auth_user", actorUserId, {
-          ip: req.ip,
-          userAgent: req.headers["user-agent"] ?? null,
-        });
-        await container.system.notificationRepo.create({
-          userId: actorUserId,
-          title: "Đăng nhập thành công",
-          body: "Tài khoản của bạn vừa đăng nhập vào hệ thống.",
-        });
-      }
-
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Cấp lại Access Token mới dựa vào Refresh Token
-   * Request (POST /auth/refresh):
-   * { "refreshToken": "..." }
-   * 
-   * Response:
-   * { "success": true, "data": { "accessToken": "...", "refreshToken": "..." } }
-   */
-  refresh = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await this.refreshUseCase.execute(req.body);
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  /**
-   * Đăng xuất hệ thống bằng cách thu hồi Refresh Token
-   * Request (POST /auth/logout):
-   * { "refreshToken": "..." }
-   * 
-   * Response:
-   * { "success": true, "data": { "message": "Đăng xuất thành công" } }
-   */
-  logout = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      // Vì req body có chứa refreshToken (đã qua validate)
-      // Decode refresh token để trace actor (nếu token hợp lệ).
-      let actorUserId: string | undefined = undefined;
+export function createAuthController(
+  loginUsecase: LoginUseCase,
+  refreshUsecase: RefreshUseCase,
+  logoutUsecase: LogoutUseCase,
+  meUsecase: MeUseCase,
+) {
+  return {
+    login: async (req: Request, res: Response, next: NextFunction) => {
       try {
-        actorUserId = JwtProvider.verifyRefreshToken(req.body.refreshToken).userId;
-      } catch {
-        actorUserId = undefined;
+        const ip = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.get('user-agent') || 'unknown';
+        const result = await loginUsecase.execute(req.body, ip, userAgent);
+        res.status(200).json({ data: result });
+      } catch (error) {
+        next(error);
       }
+    },
 
-      await this.logoutUseCase.execute(req.body.refreshToken);
-
-      // Audit & Notification: AUTH_LOGOUT (best-effort, không làm fail logout nếu không decode được)
-      const container = buildContainer();
-      if (actorUserId) {
-        await container.system.auditWriter.write(actorUserId, "AUTH_LOGOUT", "auth_user", actorUserId, {
-          ip: req.ip,
-          userAgent: req.headers["user-agent"] ?? null,
-        });
-        await container.system.notificationRepo.create({
-          userId: actorUserId,
-          title: "Đăng xuất",
-          body: "Bạn vừa đăng xuất khỏi hệ thống.",
-        });
+    refresh: async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const ip = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.get('user-agent') || 'unknown';
+        const result = await refreshUsecase.execute(req.body, ip, userAgent);
+        res.status(200).json({ data: result });
+      } catch (error) {
+        next(error);
       }
+    },
 
-      res.status(200).json({ success: true, data: { message: 'Đăng xuất thành công' } });
-    } catch (error) {
-      next(error);
-    }
-  };
+    logout: async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const ip = req.ip || req.socket.remoteAddress || 'unknown';
+        const userAgent = req.get('user-agent') || 'unknown';
+        // Note: req.user should be available if we enforce authentication for logout
+        // But often logout is just by refresh token. However, to audit log we need actor details.
+        // We will assume logout route uses authenticate middleware.
+        const actorId = req.user?.id || 'unknown';
+        const actorRole = req.user?.role || 'unknown';
 
-  /**
-   * Kiểm tra thông tin User đang đăng nhập 
-   * Headers:
-   * { Authorization: "Bearer {accessToken}" }
-   * 
-   * Response:
-   * {
-   *   "success": true,
-   *   "data": { "id": "...", "email": "...", "fullName": "...", "status": "ACTIVE", "roles": [...], "permissions": [...] }
-   * }
-   */
-  me = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.user?.userId;
-      if (!userId) {
-         // Trường hợp này AuthMiddleware đã chặn rồi, throw lỗi internal an toàn
-        throw new Error('Không lấy được userId từ request headers');
+        await logoutUsecase.execute(req.body, actorId, actorRole, ip, userAgent);
+        res.status(200).json({ data: { success: true } });
+      } catch (error) {
+        next(error);
       }
+    },
 
-      const result = await this.meUseCase.execute(userId);
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      next(error);
-    }
+    me: async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const result = await meUsecase.execute(req.user!.id);
+        res.status(200).json({ data: result });
+      } catch (error) {
+        next(error);
+      }
+    },
   };
 }

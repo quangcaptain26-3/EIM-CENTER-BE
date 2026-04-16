@@ -1,126 +1,184 @@
-import { pool } from "../../pg-pool";
-import { AuditLog } from "../../../../domain/system/entities/audit-log.entity";
-import {
-  AuditRepoPort,
-  AuditListParams,
-  AuditCountParams,
-  AuditCreateInput,
-} from "../../../../domain/system/repositories/audit.repo.port";
+import { Pool } from 'pg';
+import { IAuditRepo, AuditLogFilter } from '../../../../domain/system/repositories/audit.repo.port';
+import { AuditLogEntity } from '../../../../domain/system/entities/audit-log.entity';
+import { PagedResult } from '../../../../shared/types/common.types';
 
 /**
- * Implementation PostgreSQL cho AuditRepoPort.
- * Tương tác trực tiếp với bảng system_audit_logs.
+ * AuditPgRepo — PostgreSQL implementation của IAuditRepo.
+ *
+ * create():  INSERT đơn giản — không có ON CONFLICT.
+ * findAll(): Dynamic WHERE clauses với parameterized queries.
+ *            actionPrefix: action LIKE $prefix || '%'
+ *            diffSearch:   diff::text ILIKE '%' || $search || '%'
  */
-export class AuditPgRepo implements AuditRepoPort {
-  /** Chuyển row từ DB sang AuditLog entity */
-  private mapRow(row: any): AuditLog {
-    return {
-      id:           row.id,
-      actorUserId:  row.actor_user_id ?? undefined,
-      action:       row.action,
-      entity:       row.entity,
-      entityId:     row.entity_id ?? undefined,
-      meta:         row.meta ?? {},
-      createdAt:    new Date(row.created_at),
-    };
-  }
+export class AuditPgRepo implements IAuditRepo {
+  constructor(private readonly pool: Pool) {}
 
   /**
-   * Xây dựng điều kiện WHERE và mảng params dùng chung cho list và count.
-   * Trả về { conditions: string[], values: any[] }
+   * Ghi một audit log.
+   * Phải đảm bảo KHÔNG throw dù lỗi SQL — caller fire-and-forget.
    */
-  private buildFilters(params: AuditCountParams): { conditions: string[]; values: any[] } {
+  async create(data: Omit<AuditLogEntity, 'id' | 'eventTime'>): Promise<void> {
+    try {
+      await this.pool.query(
+        `INSERT INTO audit_logs (
+          actor_id, actor_code, actor_role, actor_ip, actor_agent,
+          action, entity_type, entity_id, entity_code,
+          old_values, new_values, diff, description, metadata, request_id
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, $15
+        )`,
+        [
+          data.actorId    ?? null,
+          data.actorCode  ?? null,
+          data.actorRole  ?? null,
+          data.actorIp    ?? null,
+          data.actorAgent ?? null,
+          data.action,
+          data.entityType ?? null,
+          data.entityId   ?? null,
+          data.entityCode ?? null,
+          data.oldValues  ? JSON.stringify(data.oldValues)  : null,
+          data.newValues  ? JSON.stringify(data.newValues)  : null,
+          data.diff       ? JSON.stringify(data.diff)       : null,
+          data.description ?? null,
+          data.metadata   ? JSON.stringify(data.metadata)   : null,
+          data.requestId  ?? null,
+        ],
+      );
+    } catch (err) {
+      // Fire-and-forget: tuyệt đối không throw
+      console.error('[AuditPgRepo] Failed to insert audit log:', err);
+    }
+  }
+
+  async findAll(filter: AuditLogFilter): Promise<PagedResult<AuditLogEntity>> {
+    const params: unknown[] = [];
     const conditions: string[] = [];
-    const values: any[] = [];
     let idx = 1;
 
-    if (params.actorUserId) {
-      conditions.push(`actor_user_id = $${idx++}`);
-      values.push(params.actorUserId);
+    // ── Filter clauses ────────────────────────────────────────────────────────
+
+    if (filter.actorId) {
+      conditions.push(`actor_id = $${idx++}`);
+      params.push(filter.actorId);
     }
 
-    if (params.action) {
+    if (filter.action) {
       conditions.push(`action = $${idx++}`);
-      values.push(params.action);
+      params.push(filter.action);
     }
 
-    if (params.fromDate) {
-      // Lọc từ ngày bắt đầu (created_at >= fromDate)
-      conditions.push(`created_at >= $${idx++}`);
-      values.push(params.fromDate);
+    if (filter.actionPrefix) {
+      // 'AUTH:*' → action LIKE 'AUTH:%'
+      // Loại bỏ suffix '*' nếu có, sau đó LIKE prefix%
+      const prefix = filter.actionPrefix.replace(/\*$/, '');
+      conditions.push(`action LIKE $${idx++} || '%'`);
+      params.push(prefix);
     }
 
-    if (params.toDate) {
-      // Lọc đến ngày kết thúc (created_at <= toDate)
-      conditions.push(`created_at <= $${idx++}`);
-      values.push(params.toDate);
+    if (filter.entityType) {
+      conditions.push(`entity_type = $${idx++}`);
+      params.push(filter.entityType);
     }
 
-    return { conditions, values };
-  }
+    if (filter.entityCode) {
+      conditions.push(`entity_code = $${idx++}`);
+      params.push(filter.entityCode);
+    }
 
-  /**
-   * Lấy danh sách audit log với filter và phân trang.
-   * Sắp xếp mới nhất lên đầu.
-   */
-  async list(params: AuditListParams): Promise<AuditLog[]> {
-    const { conditions, values } = this.buildFilters(params);
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    if (filter.dateFrom) {
+      conditions.push(`event_time >= $${idx++}`);
+      params.push(filter.dateFrom);
+    }
 
-    // Thêm tham số LIMIT và OFFSET vào cuối
-    const limit  = params.limit  ?? 50;
-    const offset = params.offset ?? 0;
-    const limitIdx  = values.length + 1;
-    const offsetIdx = values.length + 2;
-    values.push(limit, offset);
+    if (filter.dateTo) {
+      // Bao gồm toàn bộ ngày dateTo (đến cuối ngày)
+      conditions.push(`event_time < $${idx++}::date + interval '1 day'`);
+      params.push(filter.dateTo);
+    }
 
-    const { rows } = await pool.query(
-      `SELECT * FROM system_audit_logs
-       ${where}
-       ORDER BY created_at DESC
-       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      values
+    if (filter.diffSearch) {
+      // full-text search trong JSONB diff field
+      conditions.push(`diff::text ILIKE '%' || $${idx++} || '%'`);
+      params.push(filter.diffSearch);
+    }
+
+    const whereClause = conditions.length > 0
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    const page  = Math.max(1, filter.page);
+    const limit = Math.min(200, Math.max(1, filter.limit));
+    const offset = (page - 1) * limit;
+
+    // ── Count query ───────────────────────────────────────────────────────────
+    const countResult = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM audit_logs ${whereClause}`,
+      params,
+    );
+    const total = parseInt(countResult.rows[0]?.count ?? '0', 10);
+
+    // ── Data query ────────────────────────────────────────────────────────────
+    const dataResult = await this.pool.query<{
+      id: string;
+      event_time: Date;
+      actor_id: string | null;
+      actor_code: string | null;
+      actor_role: string | null;
+      actor_ip: string | null;
+      actor_agent: string | null;
+      action: string;
+      entity_type: string | null;
+      entity_id: string | null;
+      entity_code: string | null;
+      old_values: unknown;
+      new_values: unknown;
+      diff: unknown;
+      description: string | null;
+      metadata: unknown;
+      request_id: string | null;
+    }>(
+      `SELECT
+        id, event_time, actor_id, actor_code, actor_role, actor_ip, actor_agent,
+        action, entity_type, entity_id, entity_code,
+        old_values, new_values, diff, description, metadata, request_id
+       FROM audit_logs
+       ${whereClause}
+       ORDER BY event_time DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset],
     );
 
-    return rows.map((r) => this.mapRow(r));
-  }
+    const data: AuditLogEntity[] = dataResult.rows.map((r) => ({
+      id:          r.id,
+      eventTime:   r.event_time,
+      actorId:     r.actor_id   ?? undefined,
+      actorCode:   r.actor_code ?? undefined,
+      actorRole:   r.actor_role ?? undefined,
+      actorIp:     r.actor_ip   ?? undefined,
+      actorAgent:  r.actor_agent ?? undefined,
+      action:      r.action,
+      entityType:  r.entity_type  ?? undefined,
+      entityId:    r.entity_id    ?? undefined,
+      entityCode:  r.entity_code  ?? undefined,
+      oldValues:   r.old_values   as Record<string, unknown> | undefined,
+      newValues:   r.new_values   as Record<string, unknown> | undefined,
+      diff:        r.diff         as Record<string, unknown> | undefined,
+      description: r.description  ?? undefined,
+      metadata:    r.metadata     as Record<string, unknown> | undefined,
+      requestId:   r.request_id   ?? undefined,
+    }));
 
-  /**
-   * Đếm tổng số audit log thoả mãn bộ lọc (dùng cho phân trang).
-   */
-  async count(params: AuditCountParams): Promise<number> {
-    const { conditions, values } = this.buildFilters(params);
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-    const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS total FROM system_audit_logs ${where}`,
-      values
-    );
-
-    return rows[0]?.total ?? 0;
-  }
-
-  /**
-   * Tạo một bản ghi audit log mới.
-   * meta được lưu dạng jsonb bằng cách JSON.stringify.
-   */
-  async create(input: AuditCreateInput): Promise<AuditLog> {
-    const meta = input.meta ?? {};
-
-    const { rows } = await pool.query(
-      `INSERT INTO system_audit_logs
-         (actor_user_id, action, entity, entity_id, meta)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
-       RETURNING *`,
-      [
-        input.actorUserId ?? null,  // NULL nếu là hệ thống
-        input.action,
-        input.entity,
-        input.entityId ?? null,
-        JSON.stringify(meta),       // Serialize object sang chuỗi JSON cho cột jsonb
-      ]
-    );
-
-    return this.mapRow(rows[0]);
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }

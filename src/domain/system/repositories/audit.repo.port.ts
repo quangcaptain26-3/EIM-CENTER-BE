@@ -1,55 +1,57 @@
-import { AuditLog } from "../entities/audit-log.entity";
+import { AuditLogEntity } from '../entities/audit-log.entity';
+import { PagedResult } from '../../../shared/types/common.types';
 
-/**
- * Tham số lọc khi lấy danh sách audit log.
- */
-export interface AuditListParams {
-  actorUserId?: string; // Lọc theo người thực hiện
-  action?: string;      // Lọc theo loại hành động
-  fromDate?: Date;      // Lọc từ ngày (created_at >=)
-  toDate?: Date;        // Lọc đến ngày (created_at <=)
-  limit?: number;       // Số bản ghi tối đa
-  offset?: number;      // Bỏ qua bao nhiêu bản ghi (phân trang)
-}
+/** Filter params cho findAll */
+export interface AuditLogFilter {
+  /** Lọc theo actor UUID */
+  actorId?: string;
 
-/**
- * Tham số đếm số lượng audit log.
- */
-export interface AuditCountParams {
-  actorUserId?: string;
+  /** Lọc chính xác theo action (ví dụ: 'AUTH:login') */
   action?: string;
-  fromDate?: Date;
-  toDate?: Date;
+
+  /**
+   * Lọc theo prefix của action (wildcard suffix).
+   * Ví dụ: 'AUTH:*' → khớp tất cả action bắt đầu bằng 'AUTH:'
+   */
+  actionPrefix?: string;
+
+  /** Lọc theo entityType */
+  entityType?: string;
+
+  /** Lọc theo entityCode */
+  entityCode?: string;
+
+  /** Lọc từ ngày (inclusive) */
+  dateFrom?: Date;
+
+  /** Lọc đến ngày (inclusive) */
+  dateTo?: Date;
+
+  /**
+   * Full-text search trong trường diff (JSONB cast to text, ILIKE).
+   * Dùng để tìm nhanh các thay đổi chứa giá trị cụ thể.
+   */
+  diffSearch?: string;
+
+  /** Trang hiện tại (1-based) */
+  page: number;
+
+  /** Số bản ghi mỗi trang */
+  limit: number;
 }
 
-/**
- * Input tạo mới một audit log.
- */
-export interface AuditCreateInput {
-  actorUserId?: string;       // Người thực hiện (null nếu hệ thống / anonymous)
-  action: string;             // Hành động, ví dụ: "AUTH_LOGIN"
-  entity: string;             // Đối tượng bị tác động, ví dụ: "auth_user"
-  entityId?: string;          // UUID bản ghi bị tác động
-  meta?: Record<string, any>; // Thông tin bổ sung
-}
-
-/**
- * Port Repository cho Audit Log.
- * Chỉ khai báo interface — implementation ở infrastructure layer.
- */
-export interface AuditRepoPort {
+export interface IAuditRepo {
   /**
-   * Lấy danh sách audit log, hỗ trợ lọc theo actor/action/khoảng thời gian.
+   * Ghi một bản ghi audit log mới.
+   *
+   * Fire-and-forget: caller không cần await kết quả, implementation
+   * phải đảm bảo KHÔNG throw dù có lỗi SQL hay bất kỳ lỗi nào.
    */
-  list(params: AuditListParams): Promise<AuditLog[]>;
+  create(data: Omit<AuditLogEntity, 'id' | 'eventTime'>): Promise<void>;
 
   /**
-   * Đếm tổng số audit log thoả mãn bộ lọc (dùng cho phân trang).
+   * Lấy danh sách audit logs với filter động và phân trang.
+   * Chỉ dành cho ADMIN xem qua ListAuditLogsUseCase.
    */
-  count(params: AuditCountParams): Promise<number>;
-
-  /**
-   * Tạo một bản ghi audit log mới.
-   */
-  create(input: AuditCreateInput): Promise<AuditLog>;
+  findAll(filter: AuditLogFilter): Promise<PagedResult<AuditLogEntity>>;
 }

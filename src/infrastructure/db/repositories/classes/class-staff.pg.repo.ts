@@ -1,90 +1,36 @@
-import { Pool } from "pg";
-import {
-  ClassStaff,
-  StaffType,
-} from "../../../../domain/classes/entities/class-staff.entity";
-import { ClassStaffRepoPort } from "../../../../domain/classes/repositories/class-staff.repo.port";
-import { pool } from "../../pg-pool";
+import { IClassStaffRepo } from '../../../../domain/classes/repositories/class.repo.port';
 
-export class ClassStaffPgRepo implements ClassStaffRepoPort {
+export class ClassStaffPgRepo implements IClassStaffRepo {
+  constructor(private readonly db: any) {}
 
-  async assignStaff(
-    classId: string,
-    userId: string,
-    type: StaffType
-  ): Promise<ClassStaff> {
-    const query = `
-      WITH upserted AS (
-        INSERT INTO class_staff (class_id, user_id, type)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (class_id, user_id, type)
-        DO UPDATE SET assigned_at = NOW()
-        RETURNING id, class_id, user_id, type, assigned_at
-      )
-      SELECT 
-        u.id,
-        u.class_id,
-        u.user_id,
-        u.type,
-        u.assigned_at,
-        au.full_name AS user_full_name
-      FROM upserted u
-      LEFT JOIN auth_users au ON au.id = u.user_id
-    `;
-    const res = await pool.query(query, [classId, userId, type]);
-    return this.mapStaffRowToEntity(res.rows[0]);
+  async findActiveByClass(classId: string): Promise<any[]> {
+    const result = await this.db.query(
+      `SELECT * FROM class_staff WHERE class_id = $1 AND effective_to_session IS NULL`,
+      [classId]
+    );
+    return result.rows;
   }
 
-  async listStaff(classId: string): Promise<ClassStaff[]> {
-    const query = `
-      SELECT 
-        cs.id, 
-        cs.class_id, 
-        cs.user_id, 
-        cs.type, 
-        cs.assigned_at,
-        au.full_name AS user_full_name
-      FROM class_staff cs
-      LEFT JOIN auth_users au ON au.id = cs.user_id
-      WHERE cs.class_id = $1
-      ORDER BY cs.type, cs.assigned_at DESC
-    `;
-    const res = await pool.query(query, [classId]);
-    return res.rows.map((row) => this.mapStaffRowToEntity(row));
+  async create(data: {
+    classId: string;
+    teacherId: string;
+    effectiveFromSession?: number;
+    assignedBy: string;
+  }): Promise<any> {
+    const from = data.effectiveFromSession ?? 1;
+    const result = await this.db.query(
+      `INSERT INTO class_staff (class_id, teacher_id, effective_from_session, assigned_by, assigned_at)
+       VALUES ($1, $2, $3, $4, now()) RETURNING *`,
+      [data.classId, data.teacherId, from, data.assignedBy],
+    );
+    return result.rows[0];
   }
 
-  async removeStaff(
-    classId: string,
-    userId: string,
-    type: StaffType
-  ): Promise<void> {
-    const query = `
-      DELETE FROM class_staff
-      WHERE class_id = $1 AND user_id = $2 AND type = $3
-    `;
-    await pool.query(query, [classId, userId, type]);
-  }
-
-  async isTeacherOfClass(userId: string, classId: string): Promise<boolean> {
-    const query = `
-      SELECT EXISTS(
-        SELECT 1 FROM class_staff
-        WHERE user_id = $1 AND class_id = $2
-      ) AS is_teacher
-    `;
-    const res = await pool.query(query, [userId, classId]);
-    return res.rows[0].is_teacher;
-  }
-
-  // --- Mapper ---
-  private mapStaffRowToEntity(row: any): ClassStaff {
-    return {
-      id: row.id,
-      classId: row.class_id,
-      userId: row.user_id,
-      userFullName: row.user_full_name ?? null,
-      type: row.type as StaffType,
-      assignedAt: row.assigned_at,
-    };
+  async closeRecord(id: string, toSession: number): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE class_staff SET effective_to_session = $2 WHERE id = $1`,
+      [id, toSession],
+    );
+    return result.rowCount > 0;
   }
 }

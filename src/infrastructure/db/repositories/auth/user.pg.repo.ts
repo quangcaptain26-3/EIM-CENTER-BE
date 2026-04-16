@@ -1,250 +1,335 @@
-import { pool } from '../../pg-pool';
-import crypto from 'crypto';
+import type { Pool, PoolClient } from 'pg';
+import { IUserRepo } from '../../../../domain/auth/repositories/user.repo.port';
 import { UserEntity } from '../../../../domain/auth/entities/user.entity';
-import { UserRepoPort, UserAuthInfo, UserListParams, CreateUserData, UpdateUserData } from '../../../../domain/auth/repositories/user.repo.port';
+import { RoleEntity } from '../../../../domain/auth/entities/role.entity';
 
-export class UserPgRepository implements UserRepoPort {
-  async findByEmail(email: string): Promise<UserEntity | null> {
-    const query = `
-      SELECT id, email, password_hash, full_name, status, created_at
-      FROM auth_users
-      WHERE email = $1
-    `;
-    const result = await pool.query(query, [email]);
-    if (result.rows.length === 0) return null;
-    return result.rows[0];
+type UserRow = Record<string, unknown>;
+
+/**
+ * PostgreSQL implementation of IUserRepo.
+ *
+ * Rules:
+ *  - All queries use parameterized placeholders ($1, $2, …).
+ *  - JOIN users with roles so every returned UserEntity is fully hydrated.
+ *  - findById / findByEmail / findByCode never return soft-deleted rows.
+ *  - softDelete sets deleted_at = now() without physically removing the row.
+ *  - findAll applies WHERE deleted_at IS NULL + optional filters + ILIKE search
+ *    + LIMIT / OFFSET pagination.
+ */
+export class UserPgRepo implements IUserRepo {
+  constructor(private readonly pool: Pool | PoolClient) {}
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private mapRow(row: UserRow): UserEntity {
+    const role = new RoleEntity({
+      id: row['role_id'] as string,
+      code: row['role_code'] as string,
+      name: row['role_name'] as string,
+      permissions: Array.isArray(row['role_permissions'])
+        ? (row['role_permissions'] as string[])
+        : JSON.parse((row['role_permissions'] as string) ?? '[]'),
+      createdAt: row['role_created_at'] as Date,
+    });
+
+    return new UserEntity({
+      id: row['id'] as string,
+      userCode: row['user_code'] as string,
+      email: row['email'] as string,
+      passwordHash: row['password_hash'] as string,
+      role,
+      isActive: row['is_active'] as boolean,
+      fullName: row['full_name'] as string,
+      gender: row['gender'] as UserEntity['gender'],
+      dob: (row['dob'] as Date) ?? undefined,
+      phone: (row['phone'] as string) ?? undefined,
+      address: (row['address'] as string) ?? undefined,
+      cccd: (row['cccd'] as string) ?? undefined,
+      nationality: (row['nationality'] as string) ?? 'Việt Nam',
+      ethnicity: (row['ethnicity'] as string) ?? undefined,
+      religion: (row['religion'] as string) ?? undefined,
+      educationLevel: (row['education_level'] as string) ?? undefined,
+      major: (row['major'] as string) ?? undefined,
+      startDate: (row['start_date'] as Date) ?? undefined,
+      salaryPerSession:
+        row['salary_per_session'] != null
+          ? Number(row['salary_per_session'])
+          : undefined,
+      allowance: row['allowance'] != null ? Number(row['allowance']) : 0,
+      createdBy: (row['created_by'] as string) ?? undefined,
+      createdAt: row['created_at'] as Date,
+      updatedAt: row['updated_at'] as Date,
+      deletedAt: (row['deleted_at'] as Date) ?? undefined,
+    });
   }
+
+  /** Base SELECT joining users → roles */
+  private get baseSelect(): string {
+    return `
+      SELECT
+        u.id,
+        u.user_code,
+        u.email,
+        u.password_hash,
+        u.is_active,
+        u.full_name,
+        u.gender,
+        u.dob,
+        u.phone,
+        u.address,
+        u.cccd,
+        u.nationality,
+        u.ethnicity,
+        u.religion,
+        u.education_level,
+        u.major,
+        u.start_date,
+        u.salary_per_session,
+        u.allowance,
+        u.created_by,
+        u.created_at,
+        u.updated_at,
+        u.deleted_at,
+        r.id          AS role_id,
+        r.code        AS role_code,
+        r.name        AS role_name,
+        r.permissions AS role_permissions,
+        r.created_at  AS role_created_at
+      FROM users u
+      JOIN roles r ON r.id = u.role_id
+    `;
+  }
+
+  // ─── Interface ──────────────────────────────────────────────────────────────
 
   async findById(id: string): Promise<UserEntity | null> {
-    const query = `
-      SELECT id, email, password_hash, full_name, status, created_at
-      FROM auth_users
-      WHERE id = $1
-    `;
-    const result = await pool.query(query, [id]);
-    if (result.rows.length === 0) return null;
-    return result.rows[0];
+    const res = await this.pool.query(
+      `${this.baseSelect}
+       WHERE u.id = $1
+         AND u.deleted_at IS NULL
+       LIMIT 1`,
+      [id],
+    );
+    if (res.rowCount === 0) return null;
+    return this.mapRow(res.rows[0]);
   }
 
-  async getUserAuthInfo(userId: string): Promise<UserAuthInfo | null> {
-    // 1. Lấy thông tin user
-    const user = await this.findById(userId);
-    if (!user) return null;
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    const res = await this.pool.query(
+      `${this.baseSelect}
+       WHERE u.email = $1
+         AND u.deleted_at IS NULL
+       LIMIT 1`,
+      [email.toLowerCase()],
+    );
+    if (res.rowCount === 0) return null;
+    return this.mapRow(res.rows[0]);
+  }
 
-    // 2. Lấy danh sách roles của user
-    const rolesQuery = `
-      SELECT r.code
-      FROM auth_roles r
-      JOIN auth_user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = $1
-      ORDER BY CASE r.code
-        WHEN 'ROOT' THEN 1
-        WHEN 'DIRECTOR' THEN 2
-        WHEN 'ACADEMIC' THEN 3
-        WHEN 'SALES' THEN 4
-        WHEN 'ACCOUNTANT' THEN 5
-        WHEN 'TEACHER' THEN 6
-        ELSE 100
-      END
-    `;
-    const rolesResult = await pool.query(rolesQuery, [userId]);
-    const roles = rolesResult.rows.map(row => row.code);
+  async findByCode(code: string): Promise<UserEntity | null> {
+    const res = await this.pool.query(
+      `${this.baseSelect}
+       WHERE u.user_code = $1
+         AND u.deleted_at IS NULL
+       LIMIT 1`,
+      [code],
+    );
+    if (res.rowCount === 0) return null;
+    return this.mapRow(res.rows[0]);
+  }
 
-    // 3. Lấy danh sách permissions của user (thông qua roles)
-    const permissionsQuery = `
-      SELECT DISTINCT p.code
-      FROM auth_permissions p
-      JOIN auth_role_permissions rp ON p.id = rp.permission_id
-      JOIN auth_user_roles ur ON rp.role_id = ur.role_id
-      WHERE ur.user_id = $1
-    `;
-    const permissionsResult = await pool.query(permissionsQuery, [userId]);
-    const permissions = permissionsResult.rows.map(row => row.code);
+  async findAll(params: {
+    roleCode?: string;
+    isActive?: boolean;
+    search?: string;
+    page: number;
+    limit: number;
+  }): Promise<{ data: UserEntity[]; total: number }> {
+    const { roleCode, isActive, search, page, limit } = params;
+
+    const conditions: string[] = ['u.deleted_at IS NULL'];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (roleCode !== undefined) {
+      conditions.push(`r.code = $${idx++}`);
+      values.push(roleCode);
+    }
+
+    if (isActive !== undefined) {
+      conditions.push(`u.is_active = $${idx++}`);
+      values.push(isActive);
+    }
+
+    if (search && search.trim() !== '') {
+      const pattern = `%${search.trim()}%`;
+      conditions.push(
+        `(u.full_name ILIKE $${idx} OR u.phone ILIKE $${idx} OR u.cccd ILIKE $${idx})`,
+      );
+      values.push(pattern);
+      idx++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // Count total matching rows (without LIMIT/OFFSET)
+    const countRes = await this.pool.query(
+      `SELECT COUNT(*) AS total
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+        WHERE ${whereClause}`,
+      values,
+    );
+    const total = parseInt(countRes.rows[0]['total'] as string, 10);
+
+    // Paginated data
+    const offset = (page - 1) * limit;
+    const dataRes = await this.pool.query(
+      `${this.baseSelect}
+       WHERE ${whereClause}
+       ORDER BY u.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...values, limit, offset],
+    );
 
     return {
-      user,
-      roles,
-      permissions
+      data: dataRes.rows.map((r) => this.mapRow(r)),
+      total,
     };
   }
 
-  async findAll(params: UserListParams): Promise<{ items: UserAuthInfo[], total: number }> {
-    const limit = params.limit || 20;
-    const offset = ((params.page || 1) - 1) * limit;
-    const values: any[] = [];
-    const conditions: string[] = [];
-    let paramIndex = 1;
+  async create(
+    data: Omit<UserEntity, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<UserEntity> {
+    const res = await this.pool.query(
+      `INSERT INTO users (
+         user_code, email, password_hash, role_id, is_active,
+         full_name, gender, dob, phone, address, cccd,
+         nationality, ethnicity, religion, education_level, major,
+         start_date, salary_per_session, allowance, created_by, deleted_at
+       ) VALUES (
+         $1,  $2,  $3,  $4,  $5,
+         $6,  $7,  $8,  $9,  $10, $11,
+         $12, $13, $14, $15, $16,
+         $17, $18, $19, $20, $21
+       )
+       RETURNING id`,
+      [
+        data.userCode,
+        data.email.toLowerCase(),
+        data.passwordHash,
+        data.role.id,
+        data.isActive,
+        data.fullName,
+        data.gender ?? null,
+        data.dob ?? null,
+        data.phone ?? null,
+        data.address ?? null,
+        data.cccd ?? null,
+        data.nationality ?? 'Việt Nam',
+        data.ethnicity ?? null,
+        data.religion ?? null,
+        data.educationLevel ?? null,
+        data.major ?? null,
+        data.startDate ?? null,
+        data.salaryPerSession ?? null,
+        data.allowance ?? 0,
+        data.createdBy ?? null,
+        data.deletedAt ?? null,
+      ],
+    );
 
-    // Filter: tìm theo email hoặc tên (ILIKE case-insensitive)
-    if (params.search) {
-      conditions.push(`(u.email ILIKE $${paramIndex} OR u.full_name ILIKE $${paramIndex})`);
-      values.push(`%${params.search}%`);
-      paramIndex++;
-    }
-
-    // Filter: lọc theo trạng thái (ACTIVE/INACTIVE)
-    if (params.status) {
-      conditions.push(`u.status = $${paramIndex}`);
-      values.push(params.status);
-      paramIndex++;
-    }
-
-    // Filter: lọc theo role (JOIN qua auth_user_roles) — dùng cho chọn cover teacher
-    if (params.roleCode) {
-      conditions.push(`r.code = $${paramIndex}`);
-      values.push(params.roleCode);
-      paramIndex++;
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const countQuery = `
-      SELECT COUNT(DISTINCT u.id)
-      FROM auth_users u
-      LEFT JOIN auth_user_roles ur ON u.id = ur.user_id
-      LEFT JOIN auth_roles r ON ur.role_id = r.id
-      ${whereClause}
-    `;
-    const countResult = await pool.query(countQuery, values);
-    const total = parseInt(countResult.rows[0].count, 10);
-
-    const itemsQuery = `
-      SELECT u.id, u.email, u.password_hash, u.full_name, u.status, u.created_at,
-             COALESCE(json_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '[]') as roles
-      FROM auth_users u
-      LEFT JOIN auth_user_roles ur ON u.id = ur.user_id
-      LEFT JOIN auth_roles r ON ur.role_id = r.id
-      ${whereClause}
-      GROUP BY u.id
-      ORDER BY u.created_at DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-
-    const itemsResult = await pool.query(itemsQuery, [...values, limit, offset]);
-
-    const items = await Promise.all(itemsResult.rows.map(async row => {
-      const user: UserEntity = {
-        id: row.id,
-        email: row.email,
-        password_hash: row.password_hash,
-        full_name: row.full_name,
-        status: row.status,
-        created_at: row.created_at,
-      };
-
-      const permissionsQuery = `
-        SELECT DISTINCT p.code
-        FROM auth_permissions p
-        JOIN auth_role_permissions rp ON p.id = rp.permission_id
-        JOIN auth_user_roles ur ON rp.role_id = ur.role_id
-        WHERE ur.user_id = $1
-      `;
-      const permissionsResult = await pool.query(permissionsQuery, [user.id]);
-      const permissions = permissionsResult.rows.map(p => p.code);
-
-      return {
-        user,
-        roles: row.roles,
-        permissions
-      };
-    }));
-
-    return { items, total };
+    const newId = res.rows[0]['id'] as string;
+    const created = await this.findById(newId);
+    // findById only returns null for deleted rows; this is freshly inserted
+    return created!;
   }
 
-  async create(data: CreateUserData): Promise<UserEntity> {
-    const id = data.id || crypto.randomUUID();
-    const query = `
-      INSERT INTO auth_users (id, email, password_hash, full_name, status)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, email, password_hash, full_name, status, created_at
-    `;
-    const result = await pool.query(query, [id, data.email, data.password_hash, data.full_name, data.status]);
-    return result.rows[0];
-  }
+  async update(
+    id: string,
+    data: Partial<
+      Pick<
+        UserEntity,
+        | 'fullName'
+        | 'gender'
+        | 'dob'
+        | 'phone'
+        | 'address'
+        | 'cccd'
+        | 'nationality'
+        | 'ethnicity'
+        | 'religion'
+        | 'educationLevel'
+        | 'major'
+        | 'startDate'
+        | 'salaryPerSession'
+        | 'allowance'
+        | 'isActive'
+      >
+    >,
+  ): Promise<UserEntity> {
+    // Build SET clause dynamically from the provided keys only
+    const columnMap: Record<string, string> = {
+      fullName: 'full_name',
+      gender: 'gender',
+      dob: 'dob',
+      phone: 'phone',
+      address: 'address',
+      cccd: 'cccd',
+      nationality: 'nationality',
+      ethnicity: 'ethnicity',
+      religion: 'religion',
+      educationLevel: 'education_level',
+      major: 'major',
+      startDate: 'start_date',
+      salaryPerSession: 'salary_per_session',
+      allowance: 'allowance',
+      isActive: 'is_active',
+    };
 
-  async update(id: string, data: UpdateUserData): Promise<UserEntity> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
 
-    if (data.full_name !== undefined) {
-      fields.push(`full_name = $${paramIndex++}`);
-      values.push(data.full_name);
+    for (const [key, col] of Object.entries(columnMap)) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        setClauses.push(`${col} = $${idx++}`);
+        values.push((data as Record<string, unknown>)[key] ?? null);
+      }
     }
-    if (data.status !== undefined) {
-      fields.push(`status = $${paramIndex++}`);
-      values.push(data.status);
+
+    if (setClauses.length === 0) {
+      // Nothing to update — just return the current state
+      const current = await this.findById(id);
+      if (!current) throw new Error(`User ${id} not found`);
+      return current;
     }
 
-    if (fields.length === 0) {
-      const user = await this.findById(id);
-      if (!user) throw new Error('User not found');
-      return user;
-    }
-
+    // Always bump updated_at
+    setClauses.push(`updated_at = now()`);
     values.push(id);
-    const query = `
-      UPDATE auth_users
-      SET ${fields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING id, email, password_hash, full_name, status, created_at
-    `;
-    const result = await pool.query(query, values);
-    return result.rows[0];
+
+    await this.pool.query(
+      `UPDATE users
+          SET ${setClauses.join(', ')}
+        WHERE id = $${idx}
+          AND deleted_at IS NULL`,
+      values,
+    );
+
+    const updated = await this.findById(id);
+    if (!updated) throw new Error(`User ${id} not found after update`);
+    return updated;
   }
 
-  async assignRole(userId: string, roleCode: string): Promise<void> {
-    const checkRoleQuery = `SELECT id FROM auth_roles WHERE code = $1`;
-    const checkRoleResult = await pool.query(checkRoleQuery, [roleCode]);
-    
-    if (checkRoleResult.rows.length === 0) {
-      throw new Error(`Role ${roleCode} không tồn tại`);
-    }
-
-    const roleId = checkRoleResult.rows[0].id;
-
-    const assignQuery = `
-      INSERT INTO auth_user_roles (user_id, role_id)
-      VALUES ($1, $2)
-      ON CONFLICT DO NOTHING
-    `;
-    await pool.query(assignQuery, [userId, roleId]);
-  }
-
-  async revokeRole(userId: string, roleCode: string): Promise<void> {
-    const revokeQuery = `
-      DELETE FROM auth_user_roles
-      WHERE user_id = $1 AND role_id = (SELECT id FROM auth_roles WHERE code = $2)
-    `;
-    await pool.query(revokeQuery, [userId, roleCode]);
-  }
-
-  async createRefreshToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
-    const query = `
-      INSERT INTO auth_refresh_tokens (user_id, token_hash, expires_at)
-      VALUES ($1, $2, $3)
-    `;
-    await pool.query(query, [userId, tokenHash, expiresAt]);
-  }
-
-  async revokeRefreshToken(tokenHash: string): Promise<void> {
-    const query = `
-      UPDATE auth_refresh_tokens
-      SET revoked_at = NOW()
-      WHERE token_hash = $1
-    `;
-    await pool.query(query, [tokenHash]);
-  }
-
-  async findValidRefreshToken(tokenHash: string): Promise<{ userId: string; expiresAt: Date; revokedAt: Date | null } | null> {
-    const query = `
-      SELECT user_id as "userId", expires_at as "expiresAt", revoked_at as "revokedAt"
-      FROM auth_refresh_tokens
-      WHERE token_hash = $1
-    `;
-    const result = await pool.query(query, [tokenHash]);
-    if (result.rows.length === 0) return null;
-    return result.rows[0];
+  async softDelete(id: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE users
+          SET deleted_at = now(),
+              updated_at = now()
+        WHERE id = $1
+          AND deleted_at IS NULL`,
+      [id],
+    );
   }
 }

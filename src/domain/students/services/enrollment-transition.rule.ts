@@ -1,35 +1,59 @@
-import { EnrollmentStatus } from "../entities/enrollment.entity";
+import { EnrollmentEntity, EnrollmentStatus } from '../entities/enrollment.entity';
 
-/**
- * Kiểm tra xem có thể chuyển từ trạng thái hiện tại sang trạng thái mới hay không.
- * Invoice: Option A — khi PAUSED hoặc DROPPED không đụng vào invoice (giữ nguyên, xử lý thủ công).
- *
- * ACTIVE -> PAUSED/DROPPED/TRANSFERRED/GRADUATED
- * PAUSED -> ACTIVE/DROPPED/TRANSFERRED
- * PENDING -> ACTIVE/DROPPED (khi xếp lớp → ACTIVE; khi hủy → DROPPED)
- * DROPPED -> (không cho chuyển)
- * TRANSFERRED -> (không cho chuyển)
- * GRADUATED -> (không cho chuyển)
- * 
- * @param from Trạng thái hiện tại
- * @param to Trạng thái muốn chuyển đến
- * @returns boolean true nếu hợp lệ
- */
-export function canTransition(from: EnrollmentStatus, to: EnrollmentStatus): boolean {
-  if (from === to) return false;
+export class EnrollmentTransitionRule {
+  /**
+   * Kiểm tra chuyển trạng thái có hợp lệ không
+   */
+  canTransition(from: string, to: string, enrollment?: EnrollmentEntity): boolean {
+    const reason = this.getBlockReason(from, to, enrollment);
+    return reason === null;
+  }
 
-  switch (from) {
-    case "ACTIVE":
-      return ["PAUSED", "DROPPED", "TRANSFERRED", "GRADUATED"].includes(to);
-    case "PAUSED":
-      return ["ACTIVE", "DROPPED", "TRANSFERRED"].includes(to);
-    case "PENDING":
-      return ["ACTIVE", "DROPPED"].includes(to);
-    case "DROPPED":
-    case "TRANSFERRED":
-    case "GRADUATED":
-      return false; // Các trạng thái kết thúc không cho phép chuyển tiếp
-    default:
-      return false;
+  /**
+   * Lấy lý do block nếu chuyển trạng thái không hợp lệ
+   */
+  getBlockReason(from: string, to: string, enrollment?: EnrollmentEntity): string | null {
+    if (from === to) return 'Trạng thái không đổi';
+
+    // completed, dropped, transferred: terminal states, không thể chuyển tiếp
+    if (['completed', 'dropped', 'transferred'].includes(from)) {
+      return `Không thể chuyển trạng thái từ ${from}`;
+    }
+
+    switch (to) {
+      case 'trial':
+        if (from === 'pending') return null; // valid
+        return 'Chỉ có thể chuyển sang trial từ pending';
+
+      case 'active':
+        if (from === 'pending') return null; // valid, sau khi đóng tiền (logic đóng tiền ngoài scope này)
+        if (from === 'trial') return null;   // valid
+        if (from === 'paused') return null;  // valid - resume
+        return `Không thể chuyển sang active từ ${from}`;
+
+      case 'paused':
+        if (from === 'active') return null;  // valid
+        return 'Chỉ có thể chuyển sang paused từ active';
+
+      case 'dropped':
+        if (from === 'trial' || from === 'active') return null; // valid
+        return `Không thể chuyển sang dropped từ ${from}`;
+
+      case 'transferred':
+        if (from === 'active') return null; // valid
+        return 'Chỉ có thể chuyển sang transferred từ active';
+
+      case 'completed':
+        if (from === 'active') {
+          if (enrollment && enrollment.sessionsAttended < 24) {
+            return 'Cần tham gia tối thiểu 24 buổi để hoàn thành'; // assuming 24 is the threshold
+          }
+          return null; // valid
+        }
+        return 'Chỉ có thể chuyển sang completed từ active';
+
+      default:
+        return `Trạng thái đích ${to} không hợp lệ`;
+    }
   }
 }

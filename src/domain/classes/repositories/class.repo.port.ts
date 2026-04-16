@@ -1,68 +1,65 @@
-import { Class, ClassSchedule, ClassStatus } from "../entities/class.entity";
+import { ClassEntity } from '../entities/class.entity';
+import { ProgramEntity } from '../entities/program.entity';
+import { RoomEntity } from '../entities/room.entity';
 
-export interface ClassListParams {
-  search?: string; // ILIKE code or name
-  programId?: string; // Lọc theo chương trình
-  status?: ClassStatus; // Lọc theo trạng thái
-  limit?: number;
-  offset?: number;
+/** Hàng danh sách lớp — camelCase khớp FE / ClassResponse (list). */
+export interface ClassListRow {
+  id: string;
+  classCode: string;
+  programId: string;
+  programCode: string | null;
+  programName: string | null;
+  roomId: string;
+  roomCode: string | null;
+  shift: 1 | 2;
+  scheduleDays: number[];
+  minCapacity: number;
+  maxCapacity: number;
+  status: 'pending' | 'active' | 'closed';
+  startDate: string | null;
+  mainTeacherId: string | null;
+  mainTeacherName: string | null;
+  enrollmentCount: number;
+  completedSessions: number;
+  totalSessions: number;
 }
 
-export interface ClassCountParams {
-  search?: string;
-  programId?: string;
-  status?: ClassStatus;
+export interface IClassRepo {
+  findById(id: string): Promise<ClassEntity | null>;
+  findByCode(code: string): Promise<ClassEntity | null>;
+  findAll(
+    filter: {
+      programCode?: string;
+      programId?: string;
+      status?: 'pending' | 'active' | 'closed';
+      roomId?: string;
+      teacherId?: string;
+      shift?: 1 | 2;
+      search?: string;
+    },
+    paginate: { limit: number; offset: number }
+  ): Promise<{ data: ClassListRow[]; total: number }>;
+  create(data: Partial<ClassEntity>): Promise<ClassEntity>;
+  update(id: string, data: Partial<ClassEntity>): Promise<ClassEntity>;
+  updateStatus(id: string, status: 'pending' | 'active' | 'closed'): Promise<boolean>;
 }
 
-export type CreateClassInput = Omit<Class, "id" | "createdAt">;
-export type UpdateClassInput = Partial<CreateClassInput>;
+export interface IClassStaffRepo {
+  findActiveByClass(classId: string): Promise<any[]>;
+  create(data: any): Promise<any>;
+  closeRecord(id: string, toSession: number): Promise<boolean>;
+}
 
-export type UpsertScheduleInput = Omit<ClassSchedule, "id" | "classId" | "createdAt">;
+export interface IRoomRepo {
+  findById(id: string): Promise<RoomEntity | null>;
+  findByCode(code: string): Promise<RoomEntity | null>;
+  findAll(): Promise<RoomEntity[]>;
+  create(data: Partial<RoomEntity>): Promise<RoomEntity>;
+}
 
-/**
- * Interface Repository cho quản lý Lớp học và Lịch học
- */
-export interface ClassRepoPort {
-  /**
-   * Lấy danh sách lớp học có phân trang và lọc
-   */
-  list(params: ClassListParams): Promise<Class[]>;
-
-  /**
-   * Đếm tổng số lớp học theo điều kiện lọc
-   */
-  count(params: ClassCountParams): Promise<number>;
-
-  /**
-   * Truy vấn chi tiết một lớp học bằng ID
-   */
-  findById(id: string): Promise<Class | null>;
-
-  /**
-   * Truy vấn lớp học bằng mã lớp (class_code) — dùng cho thao tác thân thiện người dùng
-   */
-  findByCode(code: string): Promise<Class | null>;
-
-  /**
-   * Tạo mới lớp học
-   */
-  create(input: CreateClassInput): Promise<Class>;
-
-  /**
-   * Cập nhật thông tin lớp học (Patch)
-   */
-  update(id: string, patch: UpdateClassInput): Promise<Class>;
-
-  /**
-   * Lấy danh sách lịch học của một lớp
-   */
-  listSchedules(classId: string): Promise<ClassSchedule[]>;
-
-  /**
-   * Cập nhật lịch học (Xóa cũ, Thêm mới)
-   */
-  upsertSchedules(
-    classId: string,
-    schedules: UpsertScheduleInput[]
-  ): Promise<ClassSchedule[]>;
+export interface IProgramRepo {
+  findById(id: string): Promise<ProgramEntity | null>;
+  findByCode(code: string): Promise<ProgramEntity | null>;
+  findAll(): Promise<ProgramEntity[]>;
+  findByLevelOrder(level: number): Promise<ProgramEntity | null>;
 }

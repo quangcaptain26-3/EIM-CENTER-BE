@@ -1,34 +1,32 @@
-export type ClassStatus = "ACTIVE" | "PAUSED" | "CLOSED";
+export class ClassEntity {
+  id!: string;
+  classCode!: string;
+  programId!: string;
+  roomId!: string;
+  shift!: 1 | 2;
+  scheduleDays!: number[];
+  minCapacity!: number;
+  maxCapacity!: number;
+  status!: 'pending' | 'active' | 'closed';
+  startDate?: Date;
+  createdBy?: string;
+  createdAt!: Date;
+  updatedAt!: Date;
 
-/**
- * Lớp học
- */
-export interface Class {
-  id: string; // UUID
-  code: string;
-  name: string;
-  programId: string; // Ref: curriculum_programs.id
-  /** Tên chương trình (join từ curriculum_programs) — chỉ có trong list/enriched queries */
-  programName?: string | null;
-  room?: string | null;
-  capacity: number; // default: 16
-  /** Sĩ số hiện tại (đếm enrollments ACTIVE) — chỉ có trong list/enriched queries */
-  currentSize?: number;
-  /** Số chỗ còn trống = capacity - currentSize — dùng cho search lớp còn chỗ (sau convert trial) */
-  remainingCapacity?: number;
-  startDate: Date | string; // DATE type in DB (e.g. "2024-01-01")
-  status: ClassStatus; // ACTIVE, PAUSED, CLOSED
-  createdAt: Date;
-}
+  constructor(partial: Partial<ClassEntity>) {
+    Object.assign(this, partial);
+  }
 
-/**
- * Lịch học của lớp
- */
-export interface ClassSchedule {
-  id: string; // UUID
-  classId: string; // Ref: classes.id
-  weekday: number; // 1-7 (Mon-Sun)
-  startTime: string; // TIME type in DB (e.g. "18:00:00")
-  endTime: string; // TIME type in DB
-  createdAt: Date;
+  getShiftLabel(): string {
+    if (this.shift === 1) return 'Ca 1 (18:00–19:30)';
+    if (this.shift === 2) return 'Ca 2 (19:30–21:00)';
+    return '';
+  }
+
+  getScheduleLabel(): string {
+    if (!this.scheduleDays || !this.scheduleDays.length) return '';
+    return this.scheduleDays
+      .map((day) => (day === 8 ? 'Chủ nhật' : `Thứ ${day}`))
+      .join(', ');
+  }
 }

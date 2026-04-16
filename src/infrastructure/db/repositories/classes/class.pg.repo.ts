@@ -1,303 +1,225 @@
-import { Pool } from "pg";
 import {
-  Class,
-  ClassSchedule,
-} from "../../../../domain/classes/entities/class.entity";
-import {
-  ClassCountParams,
-  ClassListParams,
-  ClassRepoPort,
-  CreateClassInput,
-  UpdateClassInput,
-  UpsertScheduleInput,
-} from "../../../../domain/classes/repositories/class.repo.port";
+  ClassListRow,
+  IClassRepo,
+} from '../../../../domain/classes/repositories/class.repo.port';
+import { ClassEntity } from '../../../../domain/classes/entities/class.entity';
 
-import { pool } from "../../pg-pool";
+export class ClassPgRepo implements IClassRepo {
+  constructor(private readonly db: any) {}
 
-export class ClassPgRepo implements ClassRepoPort {
-  async list(params: ClassListParams): Promise<Class[]> {
-    const conditions: string[] = [];
-    const values: any[] = [];
-    let idx = 1;
+  async findById(id: string): Promise<ClassEntity | null> {
+    const result = await this.db.query(
+      `SELECT c.*, p.code as "programCode", r.room_code as "roomCode"
+       FROM classes c
+       LEFT JOIN programs p ON c.program_id = p.id
+       LEFT JOIN rooms r ON c.room_id = r.id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (!result.rows[0]) return null;
+    return new ClassEntity(result.rows[0]);
+  }
 
-    if (params.search) {
-      conditions.push(`(c.code ILIKE $${idx} OR c.name ILIKE $${idx})`);
-      values.push(`%${params.search}%`);
-      idx++;
-    }
+  async findByCode(code: string): Promise<ClassEntity | null> {
+    const result = await this.db.query(
+      `SELECT c.*, p.code as "programCode", r.room_code as "roomCode"
+       FROM classes c
+       LEFT JOIN programs p ON c.program_id = p.id
+       LEFT JOIN rooms r ON c.room_id = r.id
+       WHERE c.class_code = $1`,
+      [code]
+    );
+    if (!result.rows[0]) return null;
+    return new ClassEntity(result.rows[0]);
+  }
 
-    if (params.programId) {
-      conditions.push(`c.program_id = $${idx}`);
-      values.push(params.programId);
-      idx++;
-    }
-
-    if (params.status) {
-      conditions.push(`c.status = $${idx}`);
-      values.push(params.status);
-      idx++;
-    }
-
-    const whereStr =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-    let limitStr = "";
-    if (params.limit) {
-      limitStr = `LIMIT $${idx}`;
-      values.push(params.limit);
-      idx++;
-    }
-
-    let offsetStr = "";
-    if (params.offset) {
-      offsetStr = `OFFSET $${idx}`;
-      values.push(params.offset);
-      idx++;
-    }
-
-    // Filter: status (ACTIVE/PAUSED/CLOSED), program_id, search (code/name)
-    const query = `
-      SELECT 
-        c.id, 
-        c.code, 
-        c.name, 
-        c.program_id, 
-        p.name AS program_name,
-        c.room, 
-        c.capacity, 
-        c.start_date, 
-        c.status, 
-        c.created_at,
-        -- Subquery: đếm enrollments ACTIVE = sĩ số hiện tại
-        (SELECT COUNT(*)::INT FROM enrollments e WHERE e.class_id = c.id AND e.status = 'ACTIVE') AS current_size,
-        -- Số chỗ còn trống = capacity - count(enrollments ACTIVE) — dùng cho tìm lớp còn chỗ
-        c.capacity - (SELECT COUNT(*)::INT FROM enrollments e WHERE e.class_id = c.id AND e.status = 'ACTIVE') AS remaining_capacity
+  async findAll(
+    filter: {
+      programCode?: string;
+      programId?: string;
+      status?: 'pending' | 'active' | 'closed';
+      roomId?: string;
+      teacherId?: string;
+      shift?: 1 | 2;
+      search?: string;
+    },
+    paginate: { limit: number; offset: number },
+  ): Promise<{ data: ClassListRow[]; total: number }> {
+    const fromSql = `
       FROM classes c
-      JOIN curriculum_programs p ON p.id = c.program_id
-      ${whereStr}
-      ORDER BY c.created_at DESC
-      ${limitStr} ${offsetStr}
+      LEFT JOIN programs p ON c.program_id = p.id
+      LEFT JOIN rooms r ON c.room_id = r.id
+      LEFT JOIN class_staff cs_main
+        ON cs_main.class_id = c.id AND cs_main.effective_to_session IS NULL
+      LEFT JOIN users u ON u.id = cs_main.teacher_id AND u.deleted_at IS NULL
     `;
 
-    const res = await pool.query(query, values);
-    return res.rows.map(this.mapClassRowToEntity);
-  }
-
-  async count(params: ClassCountParams): Promise<number> {
     const conditions: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let idx = 1;
 
-    if (params.search) {
-      conditions.push(`(code ILIKE $${idx} OR name ILIKE $${idx})`);
-      values.push(`%${params.search}%`);
-      idx++;
+    if (filter.programCode) {
+      conditions.push(`p.code = $${idx++}`);
+      values.push(filter.programCode);
+    }
+    if (filter.programId) {
+      conditions.push(`c.program_id = $${idx++}`);
+      values.push(filter.programId);
+    }
+    if (filter.status) {
+      conditions.push(`c.status = $${idx++}`);
+      values.push(filter.status);
+    }
+    if (filter.roomId) {
+      conditions.push(`c.room_id = $${idx++}`);
+      values.push(filter.roomId);
+    }
+    if (filter.shift === 1 || filter.shift === 2) {
+      conditions.push(`c.shift = $${idx++}`);
+      values.push(filter.shift);
+    }
+    if (filter.teacherId) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM class_staff csf
+        WHERE csf.class_id = c.id
+          AND csf.teacher_id = $${idx++}
+          AND csf.effective_to_session IS NULL
+      )`);
+      values.push(filter.teacherId);
+    }
+    if (filter.search && filter.search.length > 0) {
+      const pattern = `%${filter.search.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      conditions.push(
+        `(c.class_code ILIKE $${idx} ESCAPE '\\' OR COALESCE(u.full_name, '') ILIKE $${idx} ESCAPE '\\')`,
+      );
+      values.push(pattern);
+      idx += 1;
     }
 
-    if (params.programId) {
-      conditions.push(`program_id = $${idx}`);
-      values.push(params.programId);
-      idx++;
-    }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    if (params.status) {
-      conditions.push(`status = $${idx}`);
-      values.push(params.status);
-      idx++;
-    }
+    const countResult = await this.db.query(
+      `SELECT COUNT(DISTINCT c.id)::int AS cnt ${fromSql} ${whereClause}`,
+      values,
+    );
+    const total = Number(countResult.rows[0]?.cnt ?? 0);
 
-    const whereStr =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const dataResult = await this.db.query(
+      `
+      SELECT
+        c.id AS "id",
+        c.class_code AS "classCode",
+        c.program_id AS "programId",
+        c.room_id AS "roomId",
+        c.shift AS "shift",
+        c.schedule_days AS "scheduleDays",
+        c.min_capacity AS "minCapacity",
+        c.max_capacity AS "maxCapacity",
+        c.status AS "status",
+        c.start_date AS "startDate",
+        p.code AS "programCode",
+        p.name AS "programName",
+        r.room_code AS "roomCode",
+        u.id AS "mainTeacherId",
+        u.full_name AS "mainTeacherName",
+        COALESCE(ec.cnt, 0)::int AS "enrollmentCount",
+        COALESCE(sc.done, 0)::int AS "completedSessions",
+        COALESCE(NULLIF(p.total_sessions, 0), 24)::int AS "totalSessions"
+      ${fromSql}
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt
+        FROM enrollments e
+        WHERE e.class_id = c.id AND e.status IN ('trial', 'active')
+      ) ec ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS done
+        FROM sessions s
+        WHERE s.class_id = c.id AND s.status = 'completed'
+      ) sc ON TRUE
+      ${whereClause}
+      ORDER BY c.created_at DESC
+      LIMIT $${idx++} OFFSET $${idx++}
+      `,
+      [...values, paginate.limit, paginate.offset],
+    );
 
-    const query = `SELECT COUNT(*)::INT as total FROM classes ${whereStr}`;
-    const res = await pool.query(query, values);
-    return res.rows[0]?.total || 0;
+    const data: ClassListRow[] = dataResult.rows.map((row: Record<string, unknown>) =>
+      this.mapRowToClassList(row),
+    );
+
+    return { data, total };
   }
 
-  async findById(id: string): Promise<Class | null> {
-    const query = `
-      SELECT id, code, name, program_id, room, capacity, start_date, status, created_at
-      FROM classes
-      WHERE id = $1
-    `;
-    const res = await pool.query(query, [id]);
-    if (res.rowCount === 0) return null;
-    return this.mapClassRowToEntity(res.rows[0]);
-  }
+  private mapRowToClassList(row: Record<string, unknown>): ClassListRow {
+    const sd = row.scheduleDays ?? row.schedule_days;
+    const scheduleDays = Array.isArray(sd) ? (sd as number[]) : [];
 
-  /** Lấy lớp theo mã lớp — dùng cho thao tác thân thiện (không nhập UUID) */
-  async findByCode(code: string): Promise<Class | null> {
-    const trimmed = String(code).trim();
-    if (!trimmed) return null;
-    const query = `
-      SELECT id, code, name, program_id, room, capacity, start_date, status, created_at
-      FROM classes
-      WHERE UPPER(TRIM(code)) = UPPER($1)
-    `;
-    const res = await pool.query(query, [trimmed]);
-    if (res.rowCount === 0) return null;
-    return this.mapClassRowToEntity(res.rows[0]);
-  }
-
-  async create(input: CreateClassInput): Promise<Class> {
-    const query = `
-      INSERT INTO classes (code, name, program_id, room, capacity, start_date, status)
-      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'ACTIVE'))
-      RETURNING id, code, name, program_id, room, capacity, start_date, status, created_at
-    `;
-    const values = [
-      input.code,
-      input.name,
-      input.programId,
-      input.room || null,
-      input.capacity,
-      input.startDate,
-      input.status,
-    ];
-
-    const res = await pool.query(query, values);
-    return this.mapClassRowToEntity(res.rows[0]);
-  }
-
-  async update(id: string, patch: UpdateClassInput): Promise<Class> {
-    const setClauses: string[] = [];
-    const values: any[] = [id];
-    let idx = 2;
-
-    if (patch.code !== undefined) {
-      setClauses.push(`code = $${idx++}`);
-      values.push(patch.code);
-    }
-    if (patch.name !== undefined) {
-      setClauses.push(`name = $${idx++}`);
-      values.push(patch.name);
-    }
-    if (patch.programId !== undefined) {
-      setClauses.push(`program_id = $${idx++}`);
-      values.push(patch.programId);
-    }
-    if (patch.room !== undefined) {
-      setClauses.push(`room = $${idx++}`);
-      values.push(patch.room);
-    }
-    if (patch.capacity !== undefined) {
-      setClauses.push(`capacity = $${idx++}`);
-      values.push(patch.capacity);
-    }
-    if (patch.startDate !== undefined) {
-      setClauses.push(`start_date = $${idx++}`);
-      values.push(patch.startDate);
-    }
-    if (patch.status !== undefined) {
-      setClauses.push(`status = $${idx++}`);
-      values.push(patch.status);
+    const startRaw = row.startDate ?? row.start_date;
+    let startDate: string | null = null;
+    if (startRaw instanceof Date) {
+      startDate = startRaw.toISOString().slice(0, 10);
+    } else if (typeof startRaw === 'string' && startRaw.length > 0) {
+      startDate = startRaw.slice(0, 10);
     }
 
-    if (setClauses.length === 0) {
-      const existing = await this.findById(id);
-      if (!existing) throw new Error("Chưa tồn tại class để cập nhật");
-      return existing;
-    }
+    const shiftNum = Number(row.shift);
+    const shift: 1 | 2 = shiftNum === 2 ? 2 : 1;
 
-    const query = `
-      UPDATE classes
-      SET ${setClauses.join(", ")}
-      WHERE id = $1
-      RETURNING id, code, name, program_id, room, capacity, start_date, status, created_at
-    `;
-
-    const res = await pool.query(query, values);
-    if (res.rowCount === 0) {
-      throw new Error(`Class with id ${id} not found for update`);
-    }
-    return this.mapClassRowToEntity(res.rows[0]);
-  }
-
-  async listSchedules(classId: string): Promise<ClassSchedule[]> {
-    const query = `
-      SELECT id, class_id, weekday, start_time, end_time, created_at
-      FROM class_schedules
-      WHERE class_id = $1
-      ORDER BY weekday, start_time
-    `;
-    const res = await pool.query(query, [classId]);
-    return res.rows.map(this.mapScheduleRowToEntity);
-  }
-
-  async upsertSchedules(
-    classId: string,
-    schedules: UpsertScheduleInput[]
-  ): Promise<ClassSchedule[]> {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      // Xóa toàn bộ schedule hiện tại của lớp
-      await client.query("DELETE FROM class_schedules WHERE class_id = $1", [
-        classId,
-      ]);
-
-      const insertedEntities: ClassSchedule[] = [];
-
-      // Thêm mới schedules
-      if (schedules.length > 0) {
-        // Dùng vòng lặp insert hoặc multi-value insert. Để đơn giản và hỗ trợ parameterization an toàn:
-        const insertQuery = `
-          INSERT INTO class_schedules (class_id, weekday, start_time, end_time)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id, class_id, weekday, start_time, end_time, created_at
-        `;
-
-        for (const s of schedules) {
-          const res = await client.query(insertQuery, [
-            classId,
-            s.weekday,
-            s.startTime,
-            s.endTime,
-          ]);
-          insertedEntities.push(this.mapScheduleRowToEntity(res.rows[0]));
-        }
-      }
-
-      await client.query("COMMIT");
-      return insertedEntities;
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-
-  // --- Mapper ---
-
-  private mapClassRowToEntity(r: any): Class {
-    const currentSize = typeof r.current_size === "number" ? r.current_size : Number(r.current_size ?? 0);
-    const remainingCapacity = typeof r.remaining_capacity === "number" ? r.remaining_capacity : Number(r.remaining_capacity ?? 0);
     return {
-      id: r.id,
-      code: r.code,
-      name: r.name,
-      programId: r.program_id,
-      programName: r.program_name ?? null,
-      room: r.room,
-      capacity: r.capacity,
-      currentSize,
-      remainingCapacity,
-      startDate: r.start_date, // tùy driver pg có thể parse thành JS Date
-      status: r.status,
-      createdAt: r.created_at,
+      id: String(row.id),
+      classCode: String(row.classCode ?? row.class_code ?? ''),
+      programId: String(row.programId ?? row.program_id ?? ''),
+      programCode: row.programCode != null ? String(row.programCode) : null,
+      programName: row.programName != null ? String(row.programName) : null,
+      roomId: String(row.roomId ?? row.room_id ?? ''),
+      roomCode: row.roomCode != null ? String(row.roomCode) : null,
+      shift,
+      scheduleDays,
+      minCapacity: Number(row.minCapacity ?? row.min_capacity ?? 0),
+      maxCapacity: Number(row.maxCapacity ?? row.max_capacity ?? 12),
+      status: (row.status as ClassListRow['status']) ?? 'pending',
+      startDate,
+      mainTeacherId: row.mainTeacherId != null ? String(row.mainTeacherId) : null,
+      mainTeacherName: row.mainTeacherName != null ? String(row.mainTeacherName) : null,
+      enrollmentCount: Number(row.enrollmentCount ?? 0),
+      completedSessions: Number(row.completedSessions ?? 0),
+      totalSessions: Number(row.totalSessions ?? 24),
     };
   }
 
-  private mapScheduleRowToEntity(r: any): ClassSchedule {
-    return {
-      id: r.id,
-      classId: r.class_id,
-      weekday: r.weekday,
-      startTime: r.start_time, // dạng string '18:00:00'
-      endTime: r.end_time,
-      createdAt: r.created_at,
-    };
+  async create(data: Partial<ClassEntity>): Promise<ClassEntity> {
+    const result = await this.db.query(
+      `INSERT INTO classes (class_code, program_id, room_id, shift, schedule_days, min_capacity, max_capacity, status, start_date, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        data.classCode, data.programId, data.roomId, data.shift, data.scheduleDays,
+        data.minCapacity, data.maxCapacity, data.status || 'pending', data.startDate, data.createdBy
+      ]
+    );
+    return new ClassEntity(result.rows[0]);
+  }
+
+  async update(id: string, data: Partial<ClassEntity>): Promise<ClassEntity> {
+    const result = await this.db.query(
+      `UPDATE classes 
+       SET shift = COALESCE($1, shift),
+           schedule_days = COALESCE($2, schedule_days),
+           min_capacity = COALESCE($3, min_capacity),
+           max_capacity = COALESCE($4, max_capacity),
+           start_date = COALESCE($5, start_date),
+           updated_at = NOW()
+       WHERE id = $6 RETURNING *`,
+      [data.shift, data.scheduleDays, data.minCapacity, data.maxCapacity, data.startDate, id]
+    );
+    return new ClassEntity(result.rows[0]);
+  }
+
+  async updateStatus(id: string, status: 'pending' | 'active' | 'closed'): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE classes SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [status, id]
+    );
+    return result.rowCount > 0;
   }
 }

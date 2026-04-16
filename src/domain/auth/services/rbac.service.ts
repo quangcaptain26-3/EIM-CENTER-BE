@@ -1,32 +1,64 @@
-export const RbacService = {
-  /**
-   * Kiểm tra xem user có đủ tất cả các required permissions không
-   * @param userPermissions Danh sách permission hiện tại của user
-   * @param requiredPermissions Danh sách permission yêu cầu
-   * @returns boolean
-   */
-  hasPermissions(userPermissions: string[], requiredPermissions: string[]): boolean {
-    if (!requiredPermissions || requiredPermissions.length === 0) return true;
-    
-    // Kiểm tra phải có đầy đủ
-    return requiredPermissions.every(permission => userPermissions.includes(permission));
-  },
+/**
+ * Role-Based Access Control service.
+ *
+ * Pure domain service — no infrastructure imports, no database calls.
+ * Permissions are defined here as the single source of truth for the system.
+ */
+export class RbacService {
+  private static readonly PERMISSIONS: Record<string, string[]> = {
+    ADMIN: ['*'],
+
+    ACADEMIC: [
+      'class:read',
+      'class:create',
+      'class:update',
+      'class:assign_cover',
+      'class:reschedule',
+      'enrollment:read',
+      'enrollment:create',
+      'enrollment:transfer_class',
+      'attendance:record',
+      'makeup:create',
+      'student:read',
+      'student:create',
+      'student:update',
+      'pause_request:create',
+      'search:all',
+      /** Xem công nợ / trạng thái thanh toán (read-only) */
+      'debt:read',
+    ],
+
+    ACCOUNTANT: [
+      'receipt:create',
+      'receipt:void',
+      'payroll:finalize',
+      'payroll:read',
+      'finance:dashboard',
+      'debt:read',
+      'enrollment:read',
+      'student:read',
+    ],
+
+    TEACHER: [
+      'session:read_own',
+      'attendance:record',
+      'makeup:read_own',
+      'payroll:read_own',
+      'profile:read_own',
+      /** Đọc HV / ghi danh phục vụ điểm danh & lớp được phân công */
+      'student:read',
+      'enrollment:read',
+    ],
+  };
 
   /**
-   * Kiểm tra xem user có 1 trong các permission yêu cầu không
+   * Returns true if the given roleCode is permitted to perform action.
+   * ADMIN always returns true (wildcard '*').
    */
-  hasAnyPermission(userPermissions: string[], requiredPermissions: string[]): boolean {
-    if (!requiredPermissions || requiredPermissions.length === 0) return true;
-    
-    return requiredPermissions.some(permission => userPermissions.includes(permission));
-  },
-  
-  /**
-   * Kiểm tra xem role của user có khớp với các required roles không
-   */
-  hasAnyRole(userRoles: string[], requiredRoles: string[]): boolean {
-    if (!requiredRoles || requiredRoles.length === 0) return true;
-    
-    return requiredRoles.some(role => userRoles.includes(role));
+  canDo(roleCode: string, action: string): boolean {
+    const perms = RbacService.PERMISSIONS[roleCode];
+    if (!perms) return false;
+    if (perms.includes('*')) return true;
+    return perms.includes(action);
   }
-};
+}

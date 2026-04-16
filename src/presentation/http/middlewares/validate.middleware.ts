@@ -1,31 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodObject, ZodError } from 'zod';
-import { AppError } from '../../../shared/errors/app-error';
+import { ZodError, ZodTypeAny } from 'zod';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
-/**
- * Middleware để validate request (body, query, params)
- * Dựa trên Zod Schema. Nếu vi phạm, ném lỗi AppError dạng badRequest.
- */
-export const validate = (schema: ZodObject<any>) => {
+export function validate(schema: ZodTypeAny) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Gọi zod để validate data từ request
-      await schema.parseAsync({
-        body: req.body,
-        query: req.query,
-        params: req.params,
-      });
-      return next();
+      req.body = await schema.parseAsync(req.body);
+      next();
     } catch (error) {
       if (error instanceof ZodError) {
-        // Gom chi tiết lỗi Zod
-        const details = error.issues.map((e) => ({
-          path: e.path.join('.'),
-          message: e.message,
-        }));
-        return next(AppError.badRequest('Dữ liệu không hợp lệ', details));
+        return res.status(400).json({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'Validation failed.',
+          details: error.flatten(),
+        });
       }
-      return next(error);
+      next(error);
     }
   };
-};
+}

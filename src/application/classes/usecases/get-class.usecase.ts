@@ -1,24 +1,32 @@
-import { ClassRepoPort } from "../../../domain/classes/repositories/class.repo.port";
-import { ClassStaffRepoPort } from "../../../domain/classes/repositories/class-staff.repo.port";
-import { ClassMapper } from "../mappers/classes.mapper";
+import { IClassRepo, IClassStaffRepo } from '../../../domain/classes/repositories/class.repo.port';
+import { AppError } from '../../../shared/errors/app-error';
+import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
 export class GetClassUseCase {
   constructor(
-    private readonly classRepo: ClassRepoPort,
-    private readonly classStaffRepo: ClassStaffRepoPort
+    private readonly classRepo: IClassRepo,
+    private readonly classStaffRepo: IClassStaffRepo
   ) {}
 
   async execute(classId: string) {
-    const entity = await this.classRepo.findById(classId);
-    if (!entity) {
-      throw new Error(`Class ${classId} not found`);
+    const targetClass = await this.classRepo.findById(classId);
+    if (!targetClass) {
+      throw new AppError(ERROR_CODES.CLASS_NOT_FOUND, 'Không tìm thấy lớp', 404);
     }
 
-    const [schedules, staff] = await Promise.all([
-      this.classRepo.listSchedules(classId),
-      this.classStaffRepo.listStaff(classId),
-    ]);
+    const staffHistory = await this.classStaffRepo.findActiveByClass(classId);
 
-    return ClassMapper.toDetailResponse(entity, schedules, staff);
+    // Mock count summary
+    const sessionsCount = {
+      completed: 0,
+      pending: 24,
+      cancelled: 0
+    };
+
+    return {
+      classInfo: targetClass,
+      staffHistory,
+      sessionsCount
+    };
   }
 }
