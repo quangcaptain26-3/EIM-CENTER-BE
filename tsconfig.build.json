@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Build chỉ emit output vào dist, không lẫn vào src
+    "outDir": "./dist",
+    "rootDir": "./src",
+
+    // Không emit .d.ts cho runtime build (tránh rác và tăng tốc build)
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "**/*.spec.ts", "dist"]
+}
