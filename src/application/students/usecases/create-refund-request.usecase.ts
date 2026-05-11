@@ -1,5 +1,6 @@
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
+import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { CreateRefundRequestSchema } from '../dtos/refund.dto';
 import { generateEimCode } from '../../../shared/utils/eim-code';
@@ -11,7 +12,8 @@ export class CreateRefundRequestUseCase {
     private readonly refundRequestRepo: IRefundRequestRepo,
     private readonly enrollmentRepo: IEnrollmentRepo,
     private readonly enrollmentHistoryRepo: IEnrollmentHistoryRepo,
-    private readonly auditLogRepo: IAuditLogRepo
+    private readonly auditLogRepo: IAuditLogRepo,
+    private readonly receiptRepo: IReceiptRepo,
   ) {}
 
   async execute(dto: unknown, actor: { id: string; role: string; ip?: string }) {
@@ -34,7 +36,17 @@ export class CreateRefundRequestUseCase {
     let finalStatus: 'pending' | 'completed' = 'pending';
 
     if (input.reasonType === 'center_unable_within_60days') {
-      finalAmount = enrollment.tuitionFee;
+      // Q19: hoàn toàn bộ tiền đã thu (phiếu dương), gồm phí giữ chỗ — không lấy thuần tuition_fee vì reserved có thể chỉ có receipt 500k.
+      const receipts = await this.receiptRepo.findByEnrollment(enrollment.id);
+      const paidPositive = receipts.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+      if (paidPositive <= 0) {
+        throw new AppError(
+          ERROR_CODES.VALIDATION_ERROR,
+          'Không có phiếu thu dương nào — không thể tạo yêu cầu hoàn trung tâm không khai giảng (Q19)',
+          422,
+        );
+      }
+      finalAmount = paidPositive;
       finalStatus = 'pending';
     } else if (input.reasonType.startsWith('subjective_')) {
       finalAmount = 0;

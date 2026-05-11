@@ -28,6 +28,13 @@ function optionalEnvNumber(key: string, defaultValue: number): number {
   return parsed;
 }
 
+function optionalEnvBool(key: string, defaultValue: boolean): boolean {
+  const value = process.env[key];
+  if (!value || value.trim() === '') return defaultValue;
+  const v = value.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 type NodeEnv = 'development' | 'production' | 'test';
 
 function parseNodeEnv(value: string): NodeEnv {
@@ -47,6 +54,8 @@ export const env = Object.freeze({
   JWT_REFRESH_TTL:    optionalEnv('JWT_REFRESH_TTL', '7d'),
   NODE_ENV:           parseNodeEnv(optionalEnv('NODE_ENV', 'development')),
   LOG_LEVEL:          optionalEnv('LOG_LEVEL', 'info'),
+  /** Bật job định kỳ (ví dụ hết hạn reserved 30 ngày — Q32). Mặc định false để dev không tự đổi dữ liệu. */
+  ENABLE_SCHEDULED_JOBS: optionalEnvBool('ENABLE_SCHEDULED_JOBS', false),
 } as const);
 
 export type Env = typeof env;

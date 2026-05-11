@@ -1,3 +1,16 @@
+/**
+ * Xem trước lương GV trước khi chốt (GET /payroll/preview — Q10, Q22).
+ *
+ * Cách vận hành:
+ * - Nếu đã có `payroll_records` cho (teacherId, tháng, năm) → trả dữ liệu đã chốt (`isFinalized: true`),
+ *   không tính lại từ session (bảng lương đã finalized là nguồn sự thật).
+ * - Chưa chốt: chạy 3 truy vấn song song để tách minh bạch:
+ *   (1) Buổi GV dạy chính và session không có `session_covers` trạng thái `completed`.
+ *   (2) Buổi GV đi cover (join `session_covers` với `cover_teacher_id` = GV, cover + session đều `completed`).
+ *   (3) Buổi GV là teacher_id nhưng đã có cover `completed` — chỉ để hiển thị “bị cover”, không cộng vào số buổi tính lương.
+ * - `sessionsCount` = (1) + (2). `totalSalary` = sessionsCount × lương/buổi hiện tại + phụ cấp hiện tại
+ *   (đây là ước tính; khi chốt, FinalizePayrollUseCase snapshot lại từ DB — xem finalize-payroll.usecase.ts).
+ */
 import { PayrollPeriodDto, PayrollPeriodSchema } from '../dtos/finance.dto';
 import { IPayrollRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 

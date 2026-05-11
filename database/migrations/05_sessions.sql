@@ -48,7 +48,9 @@ CREATE INDEX idx_sessions_date       ON sessions(session_date);
 CREATE INDEX idx_sessions_status     ON sessions(status);
 
 -- ---------------------------------------------------------------------------
--- Hàm lấy teacher thực sự dạy 1 session (phụ thuộc sessions + session_covers)
+-- Hàm lấy giáo viên thực tế được tính lương/điểm danh cho 1 buổi (Q8, Q10, Q22).
+-- Nếu có session_covers trạng thái 'completed' → trả cover_teacher_id; không thì trả teacher_id của sessions.
+-- Preview/chốt lương GV trong ứng dụng dùng cùng ngữ nghĩa này (xem preview-payroll.usecase.ts).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION effective_teacher_id(p_session_id UUID)
 RETURNS UUID LANGUAGE sql STABLE AS $$

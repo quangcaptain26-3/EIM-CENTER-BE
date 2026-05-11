@@ -1,3 +1,12 @@
+/**
+ * Tạo buổi học bù cho một bản ghi điểm danh vắng có phép — Q15, OVERVIEW §7.2.
+ *
+ * Cách vận hành:
+ * - Chỉ khi attendance `absent_excused` (vắng không phép không được học bù).
+ * - `enrollment.makeup_blocked === true` → từ chối (tổng vắng > 3 hoặc vắng không phép ≥ 3 do trigger DB).
+ * - Mỗi attendance chỉ một makeup (`findByAttendance`).
+ * - Kiểm tra xung đột phòng/GV ngày học bù qua ConflictChecker; sinh mã buổi bù (BB) + audit.
+ */
 import { IMakeupSessionRepo, IAttendanceRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';

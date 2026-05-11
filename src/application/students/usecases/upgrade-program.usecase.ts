@@ -1,3 +1,15 @@
+/**
+ * Nâng chương trình giữa khóa (ADMIN only) — Q17, OVERVIEW §8.6.
+ *
+ * Cách vận hành (transaction):
+ * - Enrollment cũ phải `active`. Tính credit phần chưa học (làm tròn xuống từng đồng — `Math.floor`):
+ *     credit = floor(tuition_fee × (24 - sessions_attended) / 24)
+ *   (tương đương học phí còn lại của các buổi chưa dùng.)
+ * - `additional_fee = newProgram.default_fee - credit` (có thể âm → phiếu “hoàn chênh lệch”; dương → thu thêm).
+ * - Phiếu âm gắn enrollment cũ; DROP enrollment cũ; tạo enrollment mới `tuition_fee = default_fee` chương mới;
+ *   nếu `additional_fee !== 0` thì tạo phiếu thu cho enrollment mới.
+ * - Ghi `program_upgrade_requests`, `enrollment_history`, cập nhật `students.current_level` = mã program mới.
+ */
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { generateEimCode } from '../../../shared/utils/eim-code';

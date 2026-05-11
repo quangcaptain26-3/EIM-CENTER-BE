@@ -18,8 +18,12 @@ export type UnfinalizedPayrollListRow = {
 };
 
 /**
- * GV có buổi tính lương trong tháng nhưng chưa có payroll_records — dùng màn "Chờ chốt".
- * Định nghĩa "có buổi tính lương" phải trùng PreviewPayrollUseCase — nếu đổi rule lương: sửa SQL EXISTS và preview cùng lúc.
+ * Danh sách giáo viên có buổi được tính lương trong kỳ nhưng chưa có `payroll_records` — màn “Chờ chốt” (Q10).
+ *
+ * Cách vận hành:
+ * - Đếm GV role TEACHER active, chưa có bản ghi chốt lương (tháng/năm), và tồn tại ít nhất một session `completed`
+ *   mà `effective_teacher_id(s.id) = GV` (main hoặc cover) — logic EXISTS phải giữ khớp PreviewPayrollUseCase.
+ * - Role `TEACHER`: luôn filter `teacher_id = actor.id` (chống IDOR), bỏ qua teacherId từ query.
  */
 export class ListUnfinalizedPayrollUseCase {
   constructor(

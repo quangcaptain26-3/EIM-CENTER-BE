@@ -1,7 +1,10 @@
 import { env } from './config/env';
 import app from './server';
 import { db } from './bootstrap/container';
+import { ExpireReservedEnrollmentsUseCase } from './application/students/usecases/expire-reserved-enrollments.usecase';
 import pino from 'pino';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const logger = pino({
   level: env.LOG_LEVEL,
@@ -17,6 +20,28 @@ const logger = pino({
 const server = app.listen(env.PORT, () => {
   logger.info(`EIM Server running on port ${env.PORT} [${env.NODE_ENV}]`);
 });
+
+if (env.ENABLE_SCHEDULED_JOBS) {
+  const expireReserved = new ExpireReservedEnrollmentsUseCase(db);
+  const runExpireReserved = () => {
+    expireReserved
+      .execute()
+      .then((r) => {
+        if (r.expiredCount > 0) {
+          logger.info({ expiredCount: r.expiredCount }, 'expire_reserved_enrollments');
+        }
+      })
+      .catch((err) => {
+        logger.error({ err }, 'expire_reserved_enrollments failed');
+      });
+  };
+  runExpireReserved();
+  const interval = setInterval(runExpireReserved, DAY_MS);
+  if (typeof (interval as NodeJS.Timeout).unref === 'function') {
+    (interval as NodeJS.Timeout).unref();
+  }
+  logger.info('Scheduled jobs enabled: expire_reserved_enrollments (daily, Q32)');
+}
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown

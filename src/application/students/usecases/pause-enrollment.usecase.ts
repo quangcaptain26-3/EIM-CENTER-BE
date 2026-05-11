@@ -1,3 +1,13 @@
+/**
+ * Bảo lưu (pause) enrollment — Q6, Q33, Q34.
+ *
+ * Cách vận hành:
+ * - Chỉ khi `status === 'active'` (học viên trial không pause — Q33).
+ * - `pause_count >= 1` → từ chối (mỗi enrollment tối đa 1 lần bảo lưu — Q34; DB cũng có CHECK).
+ * - **Giai đoạn tự do:** `sessions_attended < 3` → cập nhật ngay `paused`, tăng `pause_count`, ghi history + audit.
+ * - **Giai đoạn kiểm soát:** `sessions_attended >= 3` → chỉ tạo `pause_requests` (mã BL), chờ Admin duyệt;
+ *   response `requiresApproval: true` kèm `requestId`.
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IPauseRequestRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { PauseEnrollmentSchema } from '../dtos/enrollment.dto';

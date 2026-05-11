@@ -1,3 +1,13 @@
+/**
+ * Tiếp tục học sau bảo lưu (POST …/resume) — Q7.
+ *
+ * Cách vận hành:
+ * - Chỉ khi `status === 'paused'`.
+ * - Mặc định giữ nguyên `class_id`. Nếu body có `targetClassId` / `classId`: validate lớp đích cùng `program_id`,
+ *   trạng thái `pending` hoặc `active`, rồi ghi `class_id` mới (học viên tiếp tục ở lớp khác cùng chương trình).
+ * - Chuyển `paused → active`, set `resumed_at`, ghi `enrollment_history` (from/to class nếu đổi lớp) + audit.
+ * - Buổi học tiếp theo trên thực tế là session `pending` đầu tiên của lớp (logic lịch nằm ở tầng hiển thị/Session).
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';

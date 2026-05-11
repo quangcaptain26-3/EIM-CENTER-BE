@@ -1,3 +1,13 @@
+/**
+ * Ghi / cập nhật điểm danh theo buổi — Q3, Q14, Q25, Q30.
+ *
+ * Cách vận hành:
+ * - Trạng thái buổi cho phép: `pending` hoặc `completed` (cho phép sửa sau khi đã submit); không cho buổi `cancelled`.
+ * - GV (`TEACHER`) chỉ được điểm danh nếu `findEffectiveTeacherId(session)` = chính họ (GV cover điểm danh thay GV chính khi đã gán cover).
+ * - Điểm danh không phải ngày hôm nay (timezone HCM): chỉ `ADMIN` được sửa (Q25 — sửa lịch sử có kiểm soát).
+ * - Khi đủ điều kiện nghiệp vụ, cập nhật session `completed`; trigger DB đồng bộ `sessions_attended` / vắng / makeup_blocked (Q14–Q15).
+ * - Enrollment chỉ `completed` khi nghiệp vụ đủ 24 buổi đã xử lý — thường không tự complete chỉ từ một lần điểm danh (xem Q30 luồng xác nhận hoàn thành).
+ */
 import { IAttendanceRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';

@@ -163,7 +163,13 @@ CREATE TABLE IF NOT EXISTS staff_payroll_records (
 CREATE INDEX IF NOT EXISTS idx_staff_payroll_period
   ON staff_payroll_records(period_year, period_month);
 
--- Preview function để app và SQL dùng cùng 1 công thức.
+-- Preview / chốt lương nhân viên (học vụ, kế toán — Q18 OVERVIEW §9.3).
+-- Công thức trong hàm:
+--   deduction_amount = round(unpaid_days * monthly_salary / 26, 0)
+--   unpaid_days      = số ngày nghỉ approved, leave_type = 'unpaid_leave' trong tháng
+--   gross_salary     = max(monthly_salary - deduction_amount, 0)
+-- Lưu ý: phép annual/sick không làm tăng deduction tại đây; nếu cần “2 ngày phép miễn trừ” theo spec đầy đủ,
+-- phải bổ sung logic đếm leave_type khác hoặc bảng cấu hình — hiện chỉ trừ theo unpaid_leave.
 CREATE OR REPLACE FUNCTION fn_staff_payroll_preview(
   p_staff_id UUID,
   p_month INT,

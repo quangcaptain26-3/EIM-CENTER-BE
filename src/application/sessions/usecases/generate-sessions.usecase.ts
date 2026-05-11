@@ -1,3 +1,12 @@
+/**
+ * Sinh đủ buổi học cho lớp `pending` rồi khai giảng — Q4, Q12, OVERVIEW §8.2.
+ *
+ * Cách vận hành:
+ * - Chỉ lớp `pending`, chưa có session nào; có GV chính active trên lớp.
+ * - `SessionGeneratorService` tạo chuỗi ngày học theo `schedule_days`, `shift`, bỏ ngày lễ; số buổi = `program.totalSessions` hoặc 24.
+ * - `bulkCreate` sessions → cập nhật lớp `active`.
+ * - Cập nhật hàng loạt enrollment `pending`/`trial` của lớp: nếu tổng phiếu thu đã `>= tuition_fee` thì chuyển `active` và set `paid_at` (khai giảng đồng bộ với phụ huynh đã đóng tiền — Q12).
+ */
 import { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { SessionGeneratorService } from '../../../domain/sessions/services/session-generator.service';
 import { IClassRepo, IClassStaffRepo } from '../../../domain/classes/repositories/class.repo.port';

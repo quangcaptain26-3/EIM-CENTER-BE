@@ -1,3 +1,13 @@
+/**
+ * Dời ngày một buổi học (reschedule) — Q40.
+ *
+ * Cách vận hành:
+ * - Chỉ ADMIN/ACADEMIC; không reschedule session đã `completed` hoặc `cancelled`.
+ * - Ngày mới không được trùng ngày lễ (cấu hình holidays).
+ * - **Cùng lớp:** không được có session khác (không cancelled) trùng `session_date` — tránh 2 buổi lớp một ngày.
+ * - Kiểm tra GV và phòng trên ngày mới + ca buổi (`ConflictCheckerService`) để không đụng lịch dạy/phòng khác.
+ * - Lần reschedule đầu: lưu `original_date` = ngày cũ để audit.
+ */
 import { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';

@@ -124,6 +124,7 @@ import { CompleteMakeupSessionUseCase } from '../../application/students/usecase
 import { ListMakeupSessionsUseCase } from '../../application/students/usecases/list-makeup-sessions.usecase';
 import { PreviewMakeupConflictUseCase } from '../../application/students/usecases/preview-makeup-conflict.usecase';
 import { CreateRefundRequestUseCase } from '../../application/students/usecases/create-refund-request.usecase';
+import { ExpireReservedEnrollmentsUseCase } from '../../application/students/usecases/expire-reserved-enrollments.usecase';
 import { ReviewRefundRequestUseCase } from '../../application/students/usecases/review-refund-request.usecase';
 import { ListRefundRequestsUseCase } from '../../application/students/usecases/list-refund-requests.usecase';
 import { EnrollmentTransitionRule } from '../../domain/students/services/enrollment-transition.rule';
@@ -408,12 +409,12 @@ const getClassAttendanceMatrixUsecase = new GetClassAttendanceMatrixUseCase(
   db,
 );
 
-const createRefundRequestUsecase = new CreateRefundRequestUseCase(refundRequestRepo, enrollmentRepo, enrollmentHistoryRepo, auditLogRepo);
 let reviewRefundRequestUsecase: ReviewRefundRequestUseCase;
 const listRefundRequestsUsecase = new ListRefundRequestsUseCase(refundRequestRepo);
 
 const transferEnrollmentUsecase = new TransferEnrollmentUseCase(db);
 const upgradeProgramUsecase = new UpgradeProgramUseCase(db);
+const expireReservedEnrollmentsUsecase = new ExpireReservedEnrollmentsUseCase(db);
 
 // ─── System (Audit) repos + services ─────────────────────────────────────────
 const auditSystemRepo      = new AuditPgRepo(db);
@@ -432,6 +433,14 @@ const searchController = createSearchController(globalSearchUseCase, searchStude
 // ─── Finance repos ────────────────────────────────────────────────────────────
 const receiptRepo = new ReceiptPgRepo(db);
 const payrollRepo = new PayrollPgRepo(db);
+
+const createRefundRequestUsecase = new CreateRefundRequestUseCase(
+  refundRequestRepo,
+  enrollmentRepo,
+  enrollmentHistoryRepo,
+  auditLogRepo,
+  receiptRepo,
+);
 
 // ─── Finance use cases ────────────────────────────────────────────────────────
 // createReceiptUsecase declared after activateEnrollmentUsecase to wire the callback
@@ -974,6 +983,9 @@ staffRouter.get('/leave-balance', authenticate, rbac('*', 'payroll:read'), async
     return sendErrorResponse(res, e);
   }
 });
+// ── Lương nhân viên hành chính (Q18): preview/finalize dùng cùng công thức SQL fn_staff_payroll_preview.
+//    gross = monthly_salary - round(unpaid_leave_days × monthly_salary / 26, 0). Chỉ trừ ngày leave_type = unpaid_leave đã duyệt.
+//    (Spec “2 ngày phép/tháng không trừ lương” không được trừ vào deduction ở đây — annual/sick không vào công thức.)
 staffRouter.get('/payroll/preview', authenticate, rbac('*', 'payroll:read'), async (req, res) => {
   try {
     const staffId = String(req.query.staffId ?? '');
@@ -1096,6 +1108,14 @@ importExportRouter.post(
   importExportController.importData,
 );
 importExportRouter.get('/export/:type', authenticate, rbacExportByType, importExportController.exportData);
+importExportRouter.post('/jobs/expire-reserved-enrollments', authenticate, rbac('*'), async (_req, res) => {
+  try {
+    const result = await expireReservedEnrollmentsUsecase.execute();
+    return res.status(200).json({ data: result });
+  } catch (e) {
+    return sendErrorResponse(res, e);
+  }
+});
 router.use('/', importExportRouter);
 
 // Health: ping DB + số file migration .sql trên đĩa (xem health.controller.ts nếu đổi rule hiển thị)

@@ -9,8 +9,14 @@ import { ERROR_CODES } from '../../../shared/errors/error-codes';
 type Actor = { id: string; role: string; ip?: string };
 
 /**
- * POST /enrollments/transfer — chuyển nhượng học phí từ HV A (enrollment nguồn) sang HV B, ghi danh B vào lớp đích.
- * Toàn bộ trong một transaction.
+ * POST /enrollments/transfer — chuyển nhượng học phí (Q20, Q26).
+ *
+ * Cách vận hành (một transaction, rollback nếu lỗi):
+ * - Enrollment nguồn phải `active`; `from_student_id !== to_student_id` (không chuyển cho chính mình — Q26).
+ * - HV nhận không được có enrollment trial/active/paused song song; lớp đích còn slot.
+ * - `sessions_remaining = 24 - sessions_attended`; `amount_transferred = floor(tuition_fee × sessions_remaining / 24)` (đồng nhất Q20).
+ * - Thứ tự: INSERT phiếu âm enrollment A → INSERT enrollment mới cho B (`tuition_fee = amount_transferred`, `active`)
+ *   → INSERT phiếu dương cho B → UPDATE A `transferred` → history + `transfer_requests`.
  */
 export class TransferEnrollmentUseCase {
   constructor(private readonly db: Pool) {}

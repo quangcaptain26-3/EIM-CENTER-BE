@@ -961,16 +961,16 @@ export class DashboardStatsUseCase {
     if (pendingRefundCount > 0) {
       warnings.push({
         code: 'PENDING_WITH_RECEIPT_OVER_60_DAYS',
-        title: 'Lớp pending quá 60 ngày',
-        message: `${pendingRefundCount} lớp pending quá 60 ngày đã có học viên đóng tiền. Cần rà soát hoàn/điều chuyển.`,
+        title: 'Lớp pending quá 60 ngày (Q19)',
+        message: `${pendingRefundCount} lớp pending quá 60 ngày đã có học viên đóng tiền. Admin tạo refund_request (center_unable_within_60days) — số hoàn = tổng phiếu thu dương đã thu; duyệt xong kế toán tạo phiếu âm (gồm phí giữ chỗ nếu đã thu).`,
         count: pendingRefundCount,
       });
     }
     if (reservedOverdueCount > 0) {
       warnings.push({
         code: 'RESERVED_OVER_30_DAYS',
-        title: 'Ghi danh giữ chỗ sắp quá hạn',
-        message: `${reservedOverdueCount} ghi danh reserved quá 30 ngày chưa kích hoạt.`,
+        title: 'Ghi danh giữ chỗ quá 30 ngày (Q32)',
+        message: `${reservedOverdueCount} ghi danh reserved đã quá 30 ngày chưa kích hoạt. Bật ENABLE_SCHEDULED_JOBS (job hằng ngày) hoặc gọi POST /api/v1/jobs/expire-reserved-enrollments (ADMIN) — hệ thống chuyển dropped; phí giữ chỗ không hoàn (trừ lỗi trung tâm / Q19).`,
         count: reservedOverdueCount,
       });
     }

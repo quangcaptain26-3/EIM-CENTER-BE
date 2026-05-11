@@ -1,3 +1,11 @@
+/**
+ * Chuyển lớp (cùng chương trình, không đổi học phí enrollment) — Q9.
+ *
+ * Cách vận hành:
+ * - Điều kiện cứng (domain `canTransferClass`): `sessions_attended < 3` VÀ `class_transfer_count < 1` — thiếu một là chặn.
+ * - Lớp đích: cùng `program_id`, trạng thái nhận học viên, khác lớp hiện tại, còn chỗ (đếm trial+active < max_capacity).
+ * - Cập nhật `class_id`, tăng `class_transfer_count`, ghi `enrollment_history` action tương đương chuyển lớp + audit.
+ */
 import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';

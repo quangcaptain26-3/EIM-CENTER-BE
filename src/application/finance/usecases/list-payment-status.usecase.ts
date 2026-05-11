@@ -1,3 +1,11 @@
+/**
+ * Danh sách trạng thái đóng tiền / công nợ (trang Công nợ, KPI — Q5).
+ *
+ * Cách vận hành:
+ * - Công nợ mỗi dòng: `debt = tuition_fee - COALESCE(SUM(receipts.amount), 0)` (tương đương `enrollment_debt()` trong các báo cáo khác).
+ * - Mặc định `hasDebt = true`: chỉ enrollment `active` hoặc `paused` còn nợ (`debt > 0`).
+ * - Filter `debtOver30Days`: thêm điều kiện nợ > 0 và `enrolled_at` quá 30 ngày (cảnh báo nợ lâu).
+ */
 import { ListPaymentStatusDto, ListPaymentStatusSchema } from '../dtos/finance.dto';
 
 export interface PaymentStatusRow {

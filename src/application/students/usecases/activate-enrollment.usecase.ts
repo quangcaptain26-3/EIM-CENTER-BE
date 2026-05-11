@@ -1,3 +1,14 @@
+/**
+ * Kích hoạt ghi danh (`status → active`) — Q1 bước 5–6, Q2, OVERVIEW §4–5.
+ *
+ * Cách vận hành:
+ * - Chỉ cho phép từ `reserved` | `pending` | `trial` (trial/reserved không thể “bảo lưu” theo Q33 — pause chặn `active`).
+ * - Kiểm tra transition qua `EnrollmentTransitionRule` + phải có ít nhất 1 phiếu thu.
+ * - Số tiền cần đạt: nếu `reserved` thì `requiredAmount = max(0, tuition_fee - reservation_fee)` (phí giữ chỗ trừ vào học phí);
+ *   các trạng thái khác: `requiredAmount = tuition_fee`. So sánh với `SUM(receipts.amount)`.
+ * - Đủ tiền → `updateStatus(..., 'active', { paidAt })` + `enrollment_history` + audit.
+ * - Thường được gọi sau CreateReceiptUseCase khi tổng thu đủ; có thể gọi API activate trực tiếp nếu luồng tách bạch.
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { EnrollmentTransitionRule } from '../../../domain/students/services/enrollment-transition.rule';

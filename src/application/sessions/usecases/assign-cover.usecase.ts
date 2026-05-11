@@ -1,3 +1,13 @@
+/**
+ * Gán giáo viên cover cho một session — Q8, Q21, Q36.
+ *
+ * Cách vận hành:
+ * - Chỉ ADMIN/ACADEMIC; session phải `pending` và ngày học ≥ hôm nay.
+ * - Mỗi session tối đa một bản ghi cover; GV cover không trùng GV chính.
+ * - Kiểm tra trùng lịch theo **lịch cố định lớp** (`checkTeacherConflict` với ngày trong tuần của buổi)
+ *   và chéo với danh sách GV khả dụng (`findAvailableTeachers` — đồng bộ session/cover/makeup theo ngày).
+ * - Sau khi điểm danh xong và cover `completed`, hàm `effective_teacher_id` trong DB sẽ trả cover_teacher_id → lương buổi đó thuộc GV cover.
+ */
 import { ISessionRepo, ISessionCoverRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';
 import { AppError } from '../../../shared/errors/app-error';

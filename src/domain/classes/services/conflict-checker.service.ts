@@ -1,7 +1,15 @@
 import { Pool } from 'pg';
 
 /**
- * Kiểm tra trùng lịch dựa trên sessions thực tế + lịch cố định (schedule_days) của lớp.
+ * Kiểm tra trùng lịch GV / phòng — phục vụ tạo lớp, gán cover, reschedule, học bù (Q8, Q11, Q16, Q21, Q36).
+ *
+ * Cách vận hành (tóm tắt theo spec EIM):
+ * - **Theo lịch cố định lớp (`schedule_days` + `shift`):** `checkTeacherConflict` / `findTeacherConflictDetail`
+ *   so khớp GV đang gán cho lớp `active` khác có cùng ca và giao `schedule_days` (toán tử `&&` trên PostgreSQL).
+ * - **Theo một ngày cụ thể:** `checkTeacherConflictByDate*` kiểm tra 3 nguồn trùng ca+ngày: (1) `sessions.teacher_id`,
+ *   (2) `session_covers.cover_teacher_id` (cover không cancelled), (3) `makeup_sessions.teacher_id` — khớp Q21/Q36
+ *   (GV đang cover buổi T2 ca 1 không thể nhận thêm lịch trùng T2 ca 1).
+ * - **Phòng theo ngày:** `checkRoomConflictByDate*` — session lớp hoặc makeup cùng `room_id`, ngày, ca.
  */
 export class ConflictCheckerService {
   constructor(private readonly db: Pool) {}

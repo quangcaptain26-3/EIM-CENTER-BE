@@ -105,15 +105,13 @@ export class ExportDataUseCase {
           throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Không tìm thấy lớp', 404);
         }
         const classCode = sanitizeSegment(String(cr.rows[0].class_code));
-        const dateLabel = fileDate(coerceDate(filters.date, today));
-        filename = `DiemDanh_${classCode}_${dateLabel}.xlsx`;
 
         const { rows: students } = await this.db.query(
           `
           SELECT s.id, s.student_code AS "studentCode", s.full_name AS "fullName"
           FROM students s
           JOIN enrollments e ON e.student_id = s.id
-          WHERE e.class_id = $1 AND e.status IN ('trial', 'active')
+          WHERE e.class_id = $1 AND e.status IN ('trial', 'active', 'paused')
           ORDER BY s.full_name
         `,
           [classId],
@@ -128,6 +126,18 @@ export class ExportDataUseCase {
         `,
           [classId],
         );
+
+        const sessionNos = (sessions as { sessionNumber?: number; session_no?: number }[]).map((s) =>
+          Number(s.sessionNumber ?? s.session_no ?? 0),
+        );
+        const validNos = sessionNos.filter((n) => n > 0);
+        if (validNos.length > 0) {
+          const smin = Math.min(...validNos);
+          const smax = Math.max(...validNos);
+          filename = `DiemDanh_${classCode}_S${smin}-${smax}.xlsx`;
+        } else {
+          filename = `DiemDanh_${classCode}.xlsx`;
+        }
 
         const { rows: attendance } = await this.db.query(
           `

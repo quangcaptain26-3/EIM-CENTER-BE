@@ -1,3 +1,11 @@
+/**
+ * Ghi danh học viên vào lớp (trial / pending / reserved / …) — Q1, Q12, Q31.
+ *
+ * Cách vận hành (tóm tắt):
+ * - Học vụ/Admin chọn học sinh, lớp, trạng thái ban đầu; `tuition_fee` thường lấy theo program (có thể override theo DTO).
+ * - Sĩ số: DB trigger `trg_guard_capacity` (và/hoặc kiểm tra app) đảm bảo không vượt max khi nhiều request đồng thời — Q31.
+ * - Sau ghi danh: lịch sử enrollment + audit; luồng trial → thu tiền → activate nằm ở CreateReceipt + ActivateEnrollment.
+ */
 import { CreateEnrollmentDto, CreateEnrollmentSchema } from '../dtos/enrollment.dto';
 import { IStudentRepo, IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IClassRepo, IProgramRepo } from '../../../domain/classes/repositories/class.repo.port';
