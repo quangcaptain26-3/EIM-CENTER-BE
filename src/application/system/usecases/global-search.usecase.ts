@@ -1,3 +1,10 @@
+/**
+ * Tìm kiếm tổng hợp (Cmd+K) — OVERVIEW §11 (mã EIM-HS, SĐT, full-text…).
+ *
+ * Cách vận hành:
+ * - Nhận diện pattern: mã học sinh, mã GV, Số điện thoại 10–11 số → query tối ưu nhánh tương ứng; ngược lại dùng full-text/materialized view qua `ISearchRepo`.
+ * - Giới hạn số dòng mỗi loại để phản hồi nhanh; ưu tiên exact code match khi sort.
+ */
 import { SearchDto } from '../dtos/search.dto';
 import { ISearchRepo } from '../../../domain/system/repositories/search.repo.port';
 

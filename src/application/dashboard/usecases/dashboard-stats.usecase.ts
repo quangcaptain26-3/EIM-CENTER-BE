@@ -1,7 +1,10 @@
 /**
- * Dashboard stats — một request gom KPI, biểu đồ, lịch, hoạt động.
- * Phân nhánh theo role: ADMIN (đầy đủ), ACADEMIC (giới hạn theo OVERVIEW 3.2), ACCOUNTANT, TEACHER.
- * Muốn đổi phạm vi dữ liệu Học vụ: sửa `forAcademic` (và comment ngoại lệ) — đồng bộ với `AdminDashboardView` FE.
+ * Dashboard tổng hợp theo role — Q5 (công nợ / cảnh báo), Q19 (lớp pending > 60 ngày + refund), OVERVIEW §3.2, §5.5.
+ *
+ * Cách vận hành:
+ * - Một request gom KPI, biểu đồ, lịch hôm nay, hoạt động gần đây — SQL phân nhánh theo `actor.role` (ADMIN đầy đủ, ACADEMIC giới hạn, ACCOUNTANT góc tài chính, TEACHER lịch dạy).
+ * - Cảnh báo lớp `pending` quá 60 ngày có học viên đã đóng tiền: gợi ý tạo `refund_request` (center_unable_within_60days) — khớp message trong query phần cuối file.
+ * - Muốn đổi phạm vi Học vụ: sửa `forAcademic` và đồng bộ `AdminDashboardView` FE.
  */
 
 export interface RevenueChartPoint {

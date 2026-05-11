@@ -1,3 +1,11 @@
+/**
+ * Tạo yêu cầu hoàn phí (mã HP) — Q13 (lý do khách quan/đặc biệt), Q19 (60 ngày không khai giảng), OVERVIEW §6.3.
+ *
+ * Cách vận hành:
+ * - Chỉ ADMIN. Với `center_unable_within_60days`: `refund_amount` = tổng các phiếu thu **dương** đã thu (gồm phí giữ chỗ), không lấy thuần `tuition_fee` vì reserved có thể chỉ có receipt 500k (Q19).
+ * - `subjective_*`: hoàn 0 + trạng thái completed ngay (ghi nhận quyết định không hoàn tiền — thống nhất Q13).
+ * - `special_case`: bắt buộc số tiền + ghi chú duyệt; các nhánh khác theo `CreateRefundRequestSchema`.
+ */
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';

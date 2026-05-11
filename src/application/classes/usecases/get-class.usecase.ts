@@ -1,3 +1,9 @@
+/**
+ * Chi tiết một lớp (metadata + staff hiện tại) — cùng phạm vi xem với roster (OVERVIEW §8).
+ *
+ * Cách vận hành:
+ * - `ensureRosterViewAccess` trước khi đọc DB — đồng bộ quyền với GET roster / điểm danh.
+ */
 import type { Pool } from 'pg';
 import { IClassRepo, IClassStaffRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { AppError } from '../../../shared/errors/app-error';

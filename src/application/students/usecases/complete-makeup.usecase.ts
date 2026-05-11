@@ -1,3 +1,9 @@
+/**
+ * Đánh dấu hoàn thành buổi học bù — OVERVIEW §7 (học bù sau vắng có phép), liên quan Q15 (makeup cũ vẫn hoàn thành được dù bị khóa tạo mới).
+ *
+ * Cách vận hành:
+ * - ADMIN/ACADEMIC. Chỉ cập nhật trạng thái makeup + audit; điểm danh chính buổi gốc đã được ghi trước đó.
+ */
 import { IMakeupSessionRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';

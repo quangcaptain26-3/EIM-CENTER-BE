@@ -116,6 +116,7 @@ import { ResumeEnrollmentUseCase } from '../../application/students/usecases/res
 import { TransferClassUseCase } from '../../application/students/usecases/transfer-class.usecase';
 import { TransferEnrollmentUseCase } from '../../application/students/usecases/transfer-enrollment.usecase';
 import { ReviewPauseRequestUseCase } from '../../application/students/usecases/review-pause-request.usecase';
+import { ResetMakeupBlockedUseCase } from '../../application/students/usecases/reset-makeup-blocked.usecase';
 import { UpgradeProgramUseCase } from '../../application/students/usecases/upgrade-program.usecase';
 import { RecordAttendanceUseCase } from '../../application/students/usecases/record-attendance.usecase';
 import { GetAttendanceHistoryUseCase } from '../../application/students/usecases/get-attendance-history.usecase';
@@ -137,6 +138,7 @@ import {
   DropEnrollmentSchema,
   PauseEnrollmentSchema,
   RejectPauseRequestBodySchema,
+  ResetMakeupBlockedBodySchema,
   ResumeEnrollmentSchema,
   TransferClassSchema,
   TransferEnrollmentSchema,
@@ -174,6 +176,7 @@ import { ListPaymentStatusUseCase } from '../../application/finance/usecases/lis
 import { FinanceDashboardUseCase } from '../../application/finance/usecases/finance-dashboard.usecase';
 import { PreviewPayrollUseCase } from '../../application/finance/usecases/preview-payroll.usecase';
 import { FinalizePayrollUseCase } from '../../application/finance/usecases/finalize-payroll.usecase';
+import { UpdatePayrollNotesUseCase } from '../../application/finance/usecases/update-payroll-notes.usecase';
 import { GetPayrollUseCase } from '../../application/finance/usecases/get-payroll.usecase';
 import { ListUnfinalizedPayrollUseCase } from '../../application/finance/usecases/list-unfinalized-payroll.usecase';
 import { ListPayrollsUseCase } from '../../application/finance/usecases/list-payrolls.usecase';
@@ -182,7 +185,11 @@ import { ListPayrollsUseCase } from '../../application/finance/usecases/list-pay
 import { createFinanceController, createPayrollController } from './controllers/finance/finance.controller';
 
 // ─── Finance DTOs ─────────────────────────────────────────────────────────────
-import { CreateReceiptSchema, PayrollPeriodSchema } from '../../application/finance/dtos/finance.dto';
+import {
+  CreateReceiptSchema,
+  PayrollNotesBodySchema,
+  PayrollPeriodSchema,
+} from '../../application/finance/dtos/finance.dto';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYSTEM MODULE (Audit)
@@ -380,6 +387,11 @@ const reviewPauseRequestUsecase = new ReviewPauseRequestUseCase(
   studentRepo,
   auditLogRepo,
 );
+const resetMakeupBlockedUsecase = new ResetMakeupBlockedUseCase(
+  enrollmentRepo,
+  studentRepo,
+  auditLogRepo,
+);
 const getRosterUsecase = new GetRosterUseCase(enrollmentRepo, db);
 
 const recordAttendanceUsecase = new RecordAttendanceUseCase(
@@ -465,6 +477,7 @@ const createReceiptUsecase = new CreateReceiptUseCase(
 );
 const voidReceiptUsecase = new VoidReceiptUseCase(receiptRepo, createReceiptUsecase, auditLogRepo);
 const finalizePayrollUsecase = new FinalizePayrollUseCase(payrollRepo, previewPayrollUsecase, auditLogRepo, db);
+const updatePayrollNotesUsecase = new UpdatePayrollNotesUseCase(payrollRepo, auditLogRepo);
 reviewRefundRequestUsecase = new ReviewRefundRequestUseCase(
   refundRequestRepo,
   enrollmentRepo,
@@ -520,6 +533,7 @@ const enrollmentController = createEnrollmentController(
   transferEnrollmentUsecase,
   upgradeProgramUsecase,
   listEnrollmentsUsecase,
+  resetMakeupBlockedUsecase,
 );
 const pauseRequestController = createPauseRequestController(
   reviewPauseRequestUsecase,
@@ -549,6 +563,7 @@ const payrollController = createPayrollController(
   listPayrollsUsecase,
   getPayrollUsecase,
   listUnfinalizedPayrollUsecase,
+  updatePayrollNotesUsecase,
 );
 
 // ─── Import/Export repos + services ───────────────────────────────────────────
@@ -790,6 +805,13 @@ enrollmentRouter.post(
 );
 enrollmentRouter.post('/:id/transfer-class', authenticate, rbac('enrollment:transfer_class'), validate(TransferClassSchema), enrollmentController.transferClass);
 enrollmentRouter.post('/:id/upgrade-program', authenticate, rbac('*'), enrollmentController.upgradeProgram);
+enrollmentRouter.post(
+  '/:id/reset-makeup-blocked',
+  authenticate,
+  rbac('*'),
+  validate(ResetMakeupBlockedBodySchema),
+  enrollmentController.resetMakeupBlocked,
+);
 enrollmentRouter.get('/:id/attendance', authenticate, rbac('attendance:record', 'enrollment:read'), attendanceController.getAttendanceHistory);
 
 // Pause Requests
@@ -833,6 +855,7 @@ refundRequestRouter.patch('/:id/reject', authenticate, rbac('receipt:create', '*
 router.use('/auth', authRouter);
 router.use('/users', userRouter);
 router.use('/classes', classRouter);
+router.get('/schedule/conflict-check', authenticate, classController.listScheduleConflictCheck);
 router.get('/upcoming', classController.listUpcomingClasses);
 router.use('/sessions', sessionRouter);
 router.use('/rooms', roomRouter);
@@ -872,6 +895,13 @@ payrollRouter.get(
 payrollRouter.get('/preview', authenticate, rbac('payroll:finalize', 'payroll:read'), payrollController.previewPayroll);
 payrollRouter.post('/finalize', authenticate, rbac('payroll:finalize'), validate(PayrollPeriodSchema), payrollController.finalizePayroll);
 payrollRouter.get('/', authenticate, rbac('payroll:read', 'payroll:read_own'), payrollController.listPayrolls);
+payrollRouter.patch(
+  '/:id/notes',
+  authenticate,
+  rbac('payroll:finalize', '*'),
+  validate(PayrollNotesBodySchema),
+  payrollController.patchPayrollNotes,
+);
 payrollRouter.get(
   '/:id',
   authenticate,
@@ -984,8 +1014,9 @@ staffRouter.get('/leave-balance', authenticate, rbac('*', 'payroll:read'), async
   }
 });
 // ── Lương nhân viên hành chính (Q18): preview/finalize dùng cùng công thức SQL fn_staff_payroll_preview.
-//    gross = monthly_salary - round(unpaid_leave_days × monthly_salary / 26, 0). Chỉ trừ ngày leave_type = unpaid_leave đã duyệt.
-//    (Spec “2 ngày phép/tháng không trừ lương” không được trừ vào deduction ở đây — annual/sick không vào công thức.)
+//    gross = monthly_salary - round(unpaid_leave_days × monthly_salary / 26, 0). Quota 2 ngày phép/tháng:
+//    trigger `trg_staff_leave_adjust_type` chuyển annual/sick vượt quota → unpaid_leave; fn_staff_payroll_preview (migration 21)
+//    trả thêm paid_leave_days_used, remaining_paid_days, total_deduction (Q18).
 staffRouter.get('/payroll/preview', authenticate, rbac('*', 'payroll:read'), async (req, res) => {
   try {
     const staffId = String(req.query.staffId ?? '');
@@ -994,40 +1025,36 @@ staffRouter.get('/payroll/preview', authenticate, rbac('*', 'payroll:read'), asy
     if (!staffId || !month || !year) {
       return res.status(400).json({ code: ERROR_CODES.VALIDATION_ERROR, message: 'staffId, month, year là bắt buộc' });
     }
-    const salaryRes = await db.query(
-      `SELECT monthly_salary, full_name, user_code FROM users WHERE id = $1`,
-      [staffId],
-    );
-    if (!salaryRes.rows[0]) {
-      return res.status(404).json({ code: ERROR_CODES.USER_NOT_FOUND, message: 'Không tìm thấy nhân viên' });
-    }
-    const monthlySalary = Number(salaryRes.rows[0].monthly_salary ?? 0);
-    const unpaidRes = await db.query(
-      `SELECT COUNT(*)::int AS unpaid_days
-       FROM staff_leave_requests
-       WHERE staff_id = $1
-         AND status = 'approved'
-         AND leave_type = 'unpaid_leave'
-         AND EXTRACT(MONTH FROM leave_date) = $2
-         AND EXTRACT(YEAR FROM leave_date) = $3`,
+    const previewRes = await db.query(
+      `SELECT p.*, u.full_name AS staff_name, u.user_code AS staff_code
+       FROM fn_staff_payroll_preview($1::uuid, $2::int, $3::int) p
+       JOIN users u ON u.id = p.staff_id`,
       [staffId, month, year],
     );
-    const unpaidDays = Number(unpaidRes.rows[0]?.unpaid_days ?? 0);
-    // 26 là số ngày công chuẩn theo rules; nếu đổi policy thì sửa WORKING_DAYS_PER_MONTH và rule docs cùng lúc.
-    const WORKING_DAYS_PER_MONTH = 26;
-    const deduction = Math.round((unpaidDays * monthlySalary) / WORKING_DAYS_PER_MONTH);
-    const grossSalary = Math.max(monthlySalary - deduction, 0);
+    const row = previewRes.rows[0];
+    if (!row) {
+      return res.status(404).json({ code: ERROR_CODES.USER_NOT_FOUND, message: 'Không tìm thấy nhân viên' });
+    }
+    const monthlySalary = Number(row.monthly_salary ?? 0);
+    const unpaidDays = Number(row.unpaid_days ?? 0);
+    const deduction = Number(row.deduction_amount ?? 0);
+    const grossSalary = Number(row.gross_salary ?? 0);
+    const totalDeduction = Number(row.total_deduction ?? deduction);
     return res.status(200).json({
       data: {
         staffId,
-        staffName: salaryRes.rows[0].full_name,
-        staffCode: salaryRes.rows[0].user_code,
+        staffName: row.staff_name,
+        staffCode: row.staff_code,
         month,
         year,
         monthlySalary,
         unpaidDays,
         deduction,
         grossSalary,
+        totalDeduction,
+        paidLeaveDaysUsed: Number(row.paid_leave_days_used ?? 0),
+        monthlyPaidAllowance: Number(row.monthly_paid_allowance ?? 2),
+        remainingPaidDays: Number(row.remaining_paid_days ?? 0),
         note: `Lương gross ${grossSalary.toLocaleString('vi-VN')}₫ — Thuế TNCN & BHXH tính theo quy định`,
       },
     });
@@ -1074,6 +1101,41 @@ staffRouter.post('/payroll/finalize', authenticate, rbac('*', 'payroll:finalize'
     return sendErrorResponse(res, e);
   }
 });
+
+staffRouter.patch(
+  '/payroll-records/:id/notes',
+  authenticate,
+  rbac('*', 'payroll:finalize'),
+  validate(PayrollNotesBodySchema),
+  async (req, res) => {
+    try {
+      const actor = (req as any).user;
+      const recordId = String(req.params.id);
+      const { notes } = req.body as { notes: string | null };
+      const prev = await db.query(`SELECT id, notes FROM staff_payroll_records WHERE id = $1`, [recordId]);
+      if (!prev.rows[0]) {
+        return res.status(404).json({ code: ERROR_CODES.NOT_FOUND, message: 'Không tìm thấy bản ghi lương nhân viên' });
+      }
+      await db.query(`UPDATE staff_payroll_records SET notes = $1 WHERE id = $2`, [notes, recordId]);
+      const actorIp = Array.isArray(req.ip) ? req.ip[0] : req.ip;
+      await auditWriter.write({
+        actorId: actor.id,
+        actorCode: actor.userCode,
+        actorRole: actor.role,
+        actorIp,
+        action: 'FINANCE:staff_payroll_notes_updated',
+        entityType: 'staff_payroll_record',
+        entityId: recordId,
+        oldValues: { notes: prev.rows[0].notes },
+        newValues: { notes },
+        description: 'Q29: Cập nhật ghi chú bảng lương nhân viên (không đổi tiền)',
+      });
+      return res.status(200).json({ success: true, id: recordId, notes });
+    } catch (e) {
+      return sendErrorResponse(res, e);
+    }
+  },
+);
 router.use('/staff', staffRouter);
 
 // ── Audit Logs routes (ADMIN only) ───────────────────────────────────────────

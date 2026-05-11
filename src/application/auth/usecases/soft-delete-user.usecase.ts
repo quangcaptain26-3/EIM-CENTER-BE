@@ -1,3 +1,10 @@
+/**
+ * Soft-delete tài khoản (`deleted_at`) — Q28, OVERVIEW §2.2, §13 #20.
+ *
+ * Cách vận hành:
+ * - Cấm tự xóa mình; cấm xóa admin cuối cùng (lớp bảo vệ app + có thể có trigger DB).
+ * - Dữ liệu lịch sử, session, audit giữ FK/`teacher_id` — GV “đã xóa” vẫn hiện trong quá khứ; lịch pending cần học vụ xử lý thủ công (thông báo UI, không nằm trong use case này).
+ */
 import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { AppError } from '../../../shared/errors/app-error';

@@ -1,3 +1,13 @@
+/**
+ * Thôi học (drop) enrollment — Q13 (chủ quan / trung tâm / đặc biệt), OVERVIEW §4.3, §6.3.
+ *
+ * Cách vận hành:
+ * - Chỉ chuyển `dropped` khi `EnrollmentTransitionRule` cho phép từ trạng thái hiện tại.
+ * - `reason_type`: subjective_* (không hoàn phí, bắt buộc chọn mã — Q13), `center_unable_to_open`,
+ *   `special_case`, hoặc `center_unable_within_60days` (chuẩn hóa lưu history như `center_unable_to_open`).
+ * - Đã học ≥ 3 buổi: chỉ chấp nhận lý do chủ quan (`subjective_*`) — tránh “drop khách quan” giữa khóa mà không qua `refund_request`.
+ * - Ghi `enrollment_history` + audit (append-only) — không xóa dữ liệu tài chính đã phát sinh.
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { EnrollmentTransitionRule } from '../../../domain/students/services/enrollment-transition.rule';

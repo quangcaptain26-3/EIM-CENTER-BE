@@ -26,3 +26,5 @@ SET client_encoding TO 'UTF8';
 \i 'database/migrations/17_hr_staff_leave_payroll.sql'
 \i 'database/migrations/18_enrollment_pause_constraint.sql'
 \i 'database/migrations/19_session_covers_unique.sql'
+\i 'database/migrations/20_payroll_notes.sql'
+\i 'database/migrations/21_fn_staff_payroll_preview_q18.sql'

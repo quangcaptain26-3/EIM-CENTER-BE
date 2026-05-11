@@ -1,3 +1,10 @@
+/**
+ * Danh sách buổi học của một lớp (kèm cover nếu có) — phục vụ lịch lớp / học vụ, liên Q3/Q8 (điểm danh, gán cover).
+ *
+ * Cách vận hành:
+ * - `ensureRosterViewAccess` / guard tương đương: GV chỉ xem lớp được phân công; Admin/Academic xem theo policy.
+ * - Gộp thông tin session + cover để FE hiển thị GV hiệu lực từng buổi.
+ */
 import type { Pool } from 'pg';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';

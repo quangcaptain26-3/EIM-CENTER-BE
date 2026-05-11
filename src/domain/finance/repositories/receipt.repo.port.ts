@@ -46,4 +46,7 @@ export interface IPayrollRepo {
     payroll: Partial<PayrollEntity>,
     details: Partial<PayrollSessionDetail>[],
   ): Promise<PayrollEntity>;
+
+  /** Q29: cập nhật ghi chú sau chốt — không đổi tiền */
+  updateNotes(id: string, notes: string | null): Promise<void>;
 }

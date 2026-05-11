@@ -13,6 +13,8 @@ export class PayrollEntity {
     public readonly totalSalary: number,
     public readonly finalizedBy: string,
     public readonly finalizedAt: Date,
+    /** Q29: ghi chú sau chốt (nullable) */
+    public readonly notes: string | null,
   ) {}
 }
 

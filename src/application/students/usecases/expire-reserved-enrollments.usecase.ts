@@ -1,8 +1,12 @@
 import type { Pool } from 'pg';
 
 /**
- * Q32: Ghi danh `reserved` quá 30 ngày không kích hoạt → tự `dropped`, phí giữ chỗ không hoàn
- * (trừ trường hợp lỗi trung tâm — xử lý riêng bằng refund Q19).
+ * Cron / job: hết hạn giữ chỗ 30 ngày — Q32, OVERVIEW §5.6.
+ *
+ * Cách vận hành:
+ * - Enrollment `reserved` có `enrolled_at` quá 30 ngày → chuyển `dropped` (phí giữ chỗ không tự hoàn — cam kết phụ huynh).
+ * - Nếu lỗi trung tâm (không khai giảng / quá hạn 60 ngày): không dùng job này để hoàn tiền — Admin tạo `refund_request` + quy trình Q19.
+ * - Ghi `enrollment_history` với note cố định để audit trace.
  */
 export class ExpireReservedEnrollmentsUseCase {
   constructor(private readonly db: Pool) {}

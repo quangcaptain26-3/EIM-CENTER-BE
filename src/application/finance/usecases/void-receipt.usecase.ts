@@ -1,3 +1,9 @@
+/**
+ * “Hủy” phiếu thu bằng phiếu đối ứng — Q2, Q24, OVERVIEW §2.2 (không DELETE, chỉ bù trừ).
+ *
+ * Cách vận hành:
+ * - Tạo phiếu mới `amount = -original.amount`, `voided_by_receipt_id = original.id`, ủy quyền `CreateReceiptUseCase` để thống nhất validate + audit.
+ */
 import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { AppError } from '../../../shared/errors/app-error';

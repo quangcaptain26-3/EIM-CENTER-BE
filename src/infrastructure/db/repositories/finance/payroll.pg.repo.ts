@@ -19,6 +19,7 @@ export class PayrollPgRepo implements IPayrollRepo {
       Number(row.total_salary),
       row.finalized_by,
       row.finalized_at,
+      row.notes != null ? String(row.notes) : null,
     );
   }
 
@@ -122,9 +123,9 @@ export class PayrollPgRepo implements IPayrollRepo {
         `INSERT INTO payroll_records (
            payroll_code, teacher_id, period_month, period_year,
            sessions_count, salary_per_session_snapshot, allowance_snapshot,
-           total_salary, finalized_by, finalized_at
+           total_salary, finalized_by, finalized_at, notes
          ) VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
          )
          RETURNING *`,
         [
@@ -138,6 +139,7 @@ export class PayrollPgRepo implements IPayrollRepo {
           payroll.totalSalary,
           payroll.finalizedBy,
           payroll.finalizedAt ?? new Date(),
+          (payroll as { notes?: string | null }).notes ?? null,
         ],
       );
 
@@ -180,5 +182,9 @@ export class PayrollPgRepo implements IPayrollRepo {
     } finally {
       client.release();
     }
+  }
+
+  async updateNotes(id: string, notes: string | null): Promise<void> {
+    await this.db.query(`UPDATE payroll_records SET notes = $1 WHERE id = $2`, [notes, id]);
   }
 }

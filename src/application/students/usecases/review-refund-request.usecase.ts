@@ -1,3 +1,11 @@
+/**
+ * Admin duyệt / từ chối yêu cầu hoàn phí — bước sau `CreateRefundRequestUseCase` (Q19, Q13).
+ *
+ * Cách vận hành:
+ * - Chỉ ADMIN; từ chối bắt buộc `review_note`.
+ * - Duyệt: tạo phiếu thu **âm** (`amount = -refundAmount`, `amount_in_words` BE) gắn enrollment; nếu enrollment chưa dropped thì chuyển `dropped` + history; audit `FINANCE:refund_approved`.
+ * - Từ chối: chỉ audit `FINANCE:refund_rejected` — không tạo phiếu (immutable: mọi điều chỉnh sau dùng phiếu mới).
+ */
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';

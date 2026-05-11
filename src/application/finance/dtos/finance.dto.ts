@@ -98,3 +98,8 @@ export const ListUnfinalizedPayrollSchema = z.object({
 });
 
 export type ListUnfinalizedPayrollDto = z.infer<typeof ListUnfinalizedPayrollSchema>;
+
+/** Q29: PATCH ghi chú bảng lương GV (không sửa tiền) */
+export const PayrollNotesBodySchema = z.object({
+  notes: z.union([z.string().max(4000), z.null()]),
+});

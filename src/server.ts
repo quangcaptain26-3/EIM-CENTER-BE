@@ -127,6 +127,21 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const derr = err as DatabaseError;
     if (derr.code === '23505') {
       const detail = derr.detail ?? '';
+      const constraint = (derr as DatabaseError & { constraint?: string }).constraint ?? '';
+      // Q38: hai kế toán chốt lương cùng kỳ → UNIQUE teacher/staff + period
+      if (
+        constraint === 'payroll_records_teacher_id_period_month_period_year_key' ||
+        constraint === 'staff_payroll_records_staff_id_period_month_period_year_key' ||
+        (detail.includes('payroll_records') &&
+          (detail.includes('teacher_id') || detail.includes('period_month'))) ||
+        (detail.includes('staff_payroll_records') &&
+          (detail.includes('staff_id') || detail.includes('period_month')))
+      ) {
+        return res.status(409).json({
+          code:    ERROR_CODES.PAYROLL_ALREADY_FINALIZED,
+          message: 'Đã có người chốt lương cho kỳ này trước bạn (trùng kỳ chốt).',
+        });
+      }
       const message = detail.includes('email')
         ? 'Email đã tồn tại'
         : detail.includes('user_code')

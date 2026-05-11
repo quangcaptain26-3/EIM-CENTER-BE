@@ -13,6 +13,7 @@ export function createEnrollmentController(
   transferEnrollmentUsecase: any,
   upgradeProgramUsecase: any,
   listEnrollmentsUsecase: any,
+  resetMakeupBlockedUsecase: any,
 ) {
   /** Helper: build actor from request */
   const actor = (req: Request) => ({
@@ -145,6 +146,16 @@ export function createEnrollmentController(
           { enrollmentId: req.params.id, ...req.body },
           actor(req),
         );
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** POST /enrollments/:id/reset-makeup-blocked — Q15, chỉ ADMIN */
+    resetMakeupBlocked: async (req: Request, res: Response) => {
+      try {
+        const result = await resetMakeupBlockedUsecase.execute(req.params.id, req.body, actor(req));
         res.status(200).json(result);
       } catch (error: unknown) {
         sendErrorResponse(res, error);

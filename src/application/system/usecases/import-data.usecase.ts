@@ -1,3 +1,11 @@
+/**
+ * Import hàng loạt (học sinh, nhân sự, điểm danh, ghi danh, ngày lễ, phiếu thu…) — OVERVIEW §12.1, Q43.
+ *
+ * Cách vận hành:
+ * - Parse Excel → validate từng dòng → thực thi trong transaction (all-or-nothing theo mode); lỗi constraint gom vào danh sách lỗi tùy importer.
+ * - Sau import học sinh/nhân sự có thể gọi `refreshSearchViews` để materialized view search cập nhật (Q48: search không realtime nếu chưa refresh).
+ * - Ghi audit qua `AuditWriter` theo từng loại import.
+ */
 import { Pool, PoolClient } from 'pg';
 import { StudentsImporter, StudentImportRow } from '../../../infrastructure/excel/importers/students.importer';
 import { UsersImporter, UserImportRow } from '../../../infrastructure/excel/importers/users.importer';

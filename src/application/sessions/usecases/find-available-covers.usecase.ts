@@ -1,3 +1,11 @@
+/**
+ * Gợi ý GV có thể cover một buổi — Q8, OVERVIEW §8.4.
+ *
+ * Cách vận hành:
+ * - Đọc session (ngày, ca, lớp). Liệt kê GV; với mỗi người gọi `ConflictCheckerService` trên cùng ngày/ca
+ *   (tính cả sessions đang dạy, cover, makeup — không bỏ sót case Q21/Q36).
+ * - Trả `isAvailable` + `conflictReason` để FE disable + tooltip.
+ */
 import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
 import { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';

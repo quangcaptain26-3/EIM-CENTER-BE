@@ -1,3 +1,11 @@
+/**
+ * Tạo lớp (thường `pending`) — Q4, Q11 (phòng/tầng chỉ metadata), Q21/Q36 (trùng lịch GV), OVERVIEW §8.2.
+ *
+ * Cách vận hành:
+ * - ADMIN/ACADEMIC. Validate program, phòng, GV hợp lệ.
+ * - `ConflictCheckerService`: chặn trùng ca + `schedule_days` với lớp active khác cho cùng phòng và cùng GV (bao gồm lịch từ sessions/covers/makeup — chi tiết trong service).
+ * - Sinh mã lớp, ghi `class_staff`, audit. Sinh 24 buổi là bước hậu ki “Khai giảng” (`GenerateSessionsUseCase`).
+ */
 import { IClassRepo, IClassStaffRepo, IProgramRepo, IRoomRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';
 import { CreateClassDto } from '../dtos/class.dto';

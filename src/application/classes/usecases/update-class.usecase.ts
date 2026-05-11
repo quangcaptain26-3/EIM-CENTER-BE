@@ -1,3 +1,9 @@
+/**
+ * Cập nhật lớp đang `pending` (phòng, ca, lịch, GV…) — OVERVIEW §8.2 bước 1, cùng rule conflict với create-class.
+ *
+ * Cách vận hành:
+ * - Chỉ lớp `pending`. Nếu đổi phòng/ca/ngày học/GV: chạy lại `ConflictCheckerService` với snapshot mới trước khi lưu.
+ */
 import { IClassRepo, IClassStaffRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';
 import { UpdateClassDto } from '../dtos/class.dto';

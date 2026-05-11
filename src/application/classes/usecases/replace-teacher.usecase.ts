@@ -1,3 +1,10 @@
+/**
+ * Thay GV chính giữa khóa (chỉ ADMIN) — OVERVIEW §8.5, RBAC OVERVIEW §3.2.
+ *
+ * Cách vận hành:
+ * - Chọn buổi bắt đầu + GV mới; kiểm conflict bằng `ConflictCheckerService`.
+ * - Cập nhật `class_staff` và các `sessions` **pending** từ mốc đó; buổi đã `completed` giữ `teacher_id` cũ (đúng lịch sử điểm danh / Q25).
+ */
 import { Pool } from 'pg';
 import { IClassRepo, IClassStaffRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';

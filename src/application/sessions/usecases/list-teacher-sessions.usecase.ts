@@ -1,3 +1,9 @@
+/**
+ * Lịch dạy của GV theo tháng — Q3 (“Lịch dạy của tôi”), OVERVIEW §7.3 (GV điểm danh).
+ *
+ * Cách vận hành:
+ * - Gom sessions mà GV là chủ nhiệm và các buổi được assign cover; map nhãn ca (shift) để FE hiển thị.
+ */
 import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { ISessionRepo, ISessionCoverRepo } from '../../../domain/sessions/repositories/session.repo.port';

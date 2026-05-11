@@ -1,3 +1,11 @@
+/**
+ * Bắt đầu học thử (`pending`/`reserved` → `trial`) — Q1 (tối đa 2 buổi thử), OVERVIEW §4.1.
+ *
+ * Cách vận hành:
+ * - Kiểm tra transition qua `EnrollmentTransitionRule`.
+ * - Giới hạn số buổi đã điểm danh tính trial đọc từ `system_config.trial_sessions_limit` (mặc định 2).
+ * - Sau trial: đóng học phí → phiếu thu + `activate` (CreateReceiptUseCase / ActivateEnrollmentUseCase).
+ */
 import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
 import { EnrollmentTransitionRule } from '../../../domain/students/services/enrollment-transition.rule';
 import { AppError } from '../../../shared/errors/app-error';

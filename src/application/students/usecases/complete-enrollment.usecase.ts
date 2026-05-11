@@ -1,3 +1,11 @@
+/**
+ * Hoàn thành khóa (`active` → `completed`) — Q30 (buổi cuối + điểm danh), Q35 (cập nhật level / tốt nghiệp).
+ *
+ * Cách vận hành:
+ * - Chỉ ADMIN/ACADEMIC. Mặc định `sessions_attended >= 24`; nếu ngoại lệ nghiệp vụ: `manualConfirm === true` (Q30: session 24 còn pending nhưng đã thỏa thuận đóng khóa).
+ * - Cập nhật `students.current_level` theo bậc tiếp theo của program; nếu program là FLYERS thì set `graduated_at` (Q35).
+ * - Ghi `enrollment_history` + audit — không tự complete chỉ vì đủ 24 session DB mà không qua bước này.
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IProgramRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { IStudentRepo, IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';

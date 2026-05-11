@@ -8,8 +8,11 @@ import { ERROR_CODES } from '../../../shared/errors/error-codes';
 import { ensureClassAttendanceScope } from '../guards/ensure-class-access-by-role';
 
 /**
- * Ma trận điểm danh: học viên (roster trial+active) × buổi 1..24.
- * Nguồn dữ liệu: roster lớp + sessions + attendance — đồng bộ với export attendance-sheet (ExportDataUseCase).
+ * Ma trận điểm danh (học viên × buổi) — Q41, OVERVIEW §7.3, §12.2 export pivot.
+ *
+ * Cách vận hành:
+ * - `ensureClassAttendanceScope`: giới hạn role được xem ma trận lớp.
+ * - Join roster (trial+active) + thứ tự sessions + ô attendance (P/L/A/U) — cùng nguồn logic với export attendance-sheet trong `ExportDataUseCase`.
  */
 export class GetClassAttendanceMatrixUseCase {
   constructor(

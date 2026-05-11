@@ -1,3 +1,9 @@
+/**
+ * Công nợ / đã thu theo một enrollment — Q5, OVERVIEW §5.3 (debt = học phí − đã thu, có thể âm = dư — Q24).
+ *
+ * Cách vận hành:
+ * - `totalPaid` = sum phiếu dương; `totalRefunded` = tổng trị tuyệt đối phiếu âm; `debt = tuition_fee - totalPaid + totalRefunded` (số âm = dư tiền — Q24).
+ */
 import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 import { IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { AppError } from '../../../shared/errors/app-error';

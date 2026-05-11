@@ -183,5 +183,34 @@ export function createClassController(
         sendErrorResponse(res, error);
       }
     },
+
+    /** Q16: alias tên endpoint trong spec — cùng logic với GET /classes/suggestions */
+    listScheduleConflictCheck: async (req: Request, res: Response) => {
+      try {
+        const unavailableDays = String(req.query.unavailableDays ?? '')
+          .split(',')
+          .map((v) => Number(v.trim()))
+          .filter((v) => Number.isInteger(v) && v >= 2 && v <= 7);
+        const programId = typeof req.query.programId === 'string' ? req.query.programId : undefined;
+        const result = await listClassesUsecase.execute(
+          { status: 'pending', ...(programId ? { programId } : {}) },
+          100,
+          0,
+        );
+        const suggestions = result.data.filter((c: Record<string, unknown>) => {
+          const days = Array.isArray(c.scheduleDays) ? (c.scheduleDays as number[]) : [];
+          return unavailableDays.length === 0 || unavailableDays.every((d) => !days.includes(d));
+        });
+        res.status(200).json({
+          data: suggestions,
+          meta: {
+            source: 'schedule/conflict-check',
+            hint: 'Hệ thống không tạo lịch riêng từng HS — dùng gợi ý lớp + chuyển lớp (≤3 buổi) / vắng có phép + bù / bảo lưu (Q16).',
+          },
+        });
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
   };
 }

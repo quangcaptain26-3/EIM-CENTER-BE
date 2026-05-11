@@ -1,3 +1,10 @@
+/**
+ * Tạo hồ sơ học sinh (mã EIM-HS) — Q1 bước 1, OVERVIEW §4.1 (trước test đầu vào / ghi danh).
+ *
+ * Cách vận hành:
+ * - Validate DTO; sinh `student_code` unique (retry tối đa 5 lần); insert + audit.
+ * - Mặc định refresh materialized view search (có option `skipSearchRefresh` khi import hàng loạt — Q43).
+ */
 import { Pool } from 'pg';
 import { CreateStudentDto, CreateStudentSchema } from '../dtos/student.dto';
 import { IStudentRepo } from '../../../domain/students/repositories/student.repo.port';

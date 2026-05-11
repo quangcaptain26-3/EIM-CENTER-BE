@@ -53,6 +53,11 @@ export const TransferEnrollmentSchema = z.object({
 
 export type TransferEnrollmentDto = z.infer<typeof TransferEnrollmentSchema>;
 
+/** Q15: body POST /enrollments/:id/reset-makeup-blocked (enrollmentId lấy từ URL) */
+export const ResetMakeupBlockedBodySchema = z.object({
+  reason: z.string().min(10, 'Lý do mở khóa cần ít nhất 10 ký tự'),
+});
+
 export const ResumeEnrollmentSchema = z
   .object({
     classId: z.string().uuid().optional(),

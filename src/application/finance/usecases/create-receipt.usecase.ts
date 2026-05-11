@@ -2,7 +2,7 @@
  * Tạo phiếu thu (POST /receipts) — Q2, Q24 và OVERVIEW §5.
  *
  * Cách vận hành:
- * - Phiếu thu gắn bắt buộc `enrollment_id`; `amount_in_words` do BE sinh (`amountToWordsVi`), không nhận từ FE.
+ * - Phiếu thu gắn bắt buộc `enrollment_id`; `payer_name` có thể khác tên học sinh (người nộp thực tế — Q44); `amount_in_words` do BE sinh, không nhận từ FE.
  * - Phiếu âm: bắt buộc có `voidedByReceiptId` trỏ phiếu gốc cùng enrollment (hoàn/bù trừ, không xóa phiếu cũ).
  * - Sau khi insert: nếu `amount > 0` và enrollment đang `pending` hoặc `trial`, cộng tổng `SUM(receipts.amount)`
  *   cho enrollment đó; nếu `>= tuition_fee` → gọi `activateEnrollmentFn` để chuyển sang `active` (đóng đủ học phí).

@@ -1,3 +1,9 @@
+/**
+ * Danh sách học viên trên lớp (roster: trial + active…) — điểm danh, export roster, Q3.
+ *
+ * Cách vận hành:
+ * - `ensureRosterViewAccess`: GV chỉ roster lớp mình được gán; staff/admin theo policy.
+ */
 import type { Pool } from 'pg';
 import { ensureRosterViewAccess } from '../guards/ensure-class-access-by-role';
 import { ClassRosterRow, IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';

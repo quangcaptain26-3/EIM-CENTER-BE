@@ -1,3 +1,10 @@
+/**
+ * Công bố lớp sắp khai giảng (`announced_at`) — Q12, OVERVIEW §10.1–10.2.
+ *
+ * Cách vận hành:
+ * - ADMIN/ACADEMIC. Gán `announced_at` một lần; lớp sau đó có thể hiển thị public trên `/upcoming` theo view/repo.
+ * - Không cho công bố lặp (409 nếu đã announced).
+ */
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';

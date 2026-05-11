@@ -1,3 +1,11 @@
+/**
+ * Export dữ liệu (Excel/CSV) theo loại — OVERVIEW §12.2, Q41 (điểm danh pivot / roster / audit).
+ *
+ * Cách vận hành:
+ * - Kiểm quyền theo loại export (roster/điểm danh dùng guard lớp — tránh lộ dữ liệu lớp không thuộc phạm vi GV).
+ * - Ủy quyện từng exporter (students, attendance pivot, payroll, receipts, debt, roster, audit CSV…); tên file có ngày + sanitize.
+ * - Không sửa dữ liệu nguồn — chỉ đọc và stream buffer.
+ */
 import {
   ensureClassAttendanceScope,
   ensureClassRosterExportAccess,

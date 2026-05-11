@@ -5,10 +5,12 @@ import { ERROR_CODES } from '../../../../shared/errors/error-codes';
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 function actor(req: Request) {
+  const u = (req as any).user;
   return {
-    id:   (req as any).user.id,
-    role: (req as any).user.role,
-    ip:   req.ip,
+    id:       u.id,
+    role:     u.role,
+    ip:       req.ip,
+    userCode: u.userCode,
   };
 }
 
@@ -108,6 +110,7 @@ export function createPayrollController(
   listPayrollsUsecase:     any,
   getPayrollUsecase:       any,
   listUnfinalizedPayrollUsecase: any,
+  updatePayrollNotesUsecase: any,
 ) {
   return {
 
@@ -139,6 +142,14 @@ export function createPayrollController(
     listUnfinalizedPayrolls: async (req: Request, res: Response) => {
       try {
         const result = await listUnfinalizedPayrollUsecase.execute(req.query, actor(req));
+        res.status(200).json(result);
+      } catch (e) { sendErrorResponse(res, e); }
+    },
+
+    /** PATCH /payroll/:id/notes — Q29 */
+    patchPayrollNotes: async (req: Request, res: Response) => {
+      try {
+        const result = await updatePayrollNotesUsecase.execute(req.params.id, req.body, actor(req));
         res.status(200).json(result);
       } catch (e) { sendErrorResponse(res, e); }
     },

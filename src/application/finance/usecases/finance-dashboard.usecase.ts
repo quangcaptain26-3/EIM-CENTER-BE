@@ -1,3 +1,9 @@
+/**
+ * Dashboard tài chính (cash vs accrual, top nợ, chờ chốt lương…) — OVERVIEW §5.4, §5.3, Q5.
+ *
+ * Cách vận hành:
+ * - Gom SQL theo kỳ lọc: doanh thu theo phiếu thu (cash) vs theo enrollment (accrual), top học viên còn nợ, số phiếu hoàn/lương chờ xử lý tùy thiết kế query trong `execute`.
+ */
 import { FinanceDashboardDto, FinanceDashboardSchema } from '../dtos/finance.dto';
 
 export interface ProgramBreakdown {

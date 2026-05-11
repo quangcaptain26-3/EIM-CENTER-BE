@@ -1,3 +1,10 @@
+/**
+ * Admin duyệt / từ chối `pause_requests` — Q6 giai đoạn kiểm soát (từ buổi 4+), OVERVIEW §6.1.
+ *
+ * Cách vận hành:
+ * - Chỉ role ADMIN. Duyệt: request → `approved`, enrollment → `paused`, tăng `pause_count`, ghi history + audit (khớp luồng “cần Admin” trong Q6).
+ * - Từ chối: request → `rejected` + `review_note` + audit; enrollment không đổi trạng thái.
+ */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IPauseRequestRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { ReviewPauseRequestSchema } from '../dtos/enrollment.dto';
