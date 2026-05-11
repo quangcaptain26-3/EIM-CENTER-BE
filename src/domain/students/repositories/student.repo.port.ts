@@ -28,7 +28,7 @@ export interface IStudentRepo {
   softDelete(id: string): Promise<void>;
 }
 
-/** Roster lớp cho điểm danh — chỉ trial + active */
+/** Roster lớp cho điểm danh — trial + active + paused (đồng bộ filter SQL) */
 export interface ClassRosterRow {
   enrollmentId: string;
   studentId: string;
@@ -36,6 +36,10 @@ export interface ClassRosterRow {
   studentCode: string | null;
   status: string;
   unexcusedAbsenceCount: number;
+  /** Có mặt + muộn (cột enrollments.sessions_attended, trigger từ attendance) */
+  sessionsCompleted: number;
+  /** Tổng buổi đã tạo trên lớp (sessions) */
+  sessionsTotal: number;
 }
 
 /** Ghi danh + mã CT / lớp (JOIN) — dùng cho API danh sách */

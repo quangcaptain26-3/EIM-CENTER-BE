@@ -5,12 +5,14 @@ import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 import { RefreshDto, RefreshDtoSchema } from '../dtos/auth.dto';
 import { IUserRepo } from '../../../domain/auth/repositories/user.repo.port';
+import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 
 export class RefreshUseCase {
   constructor(
     private readonly sessionRepo: ISessionRepo,
     private readonly userRepo: IUserRepo,
     private readonly jwtProvider: JwtProvider,
+    private readonly auditLogRepo: IAuditLogRepo,
   ) {}
 
   async execute(input: RefreshDto, ip: string, userAgent: string) {
@@ -84,6 +86,15 @@ export class RefreshUseCase {
       ipAddress: ip,
       userAgent: userAgent,
       expiresAt: expiresAt,
+    });
+
+    await this.auditLogRepo.log({
+      action: 'AUTH:refresh',
+      actorId: user.id,
+      actorCode: user.userCode,
+      actorRole: user.role.code,
+      actorIp: ip,
+      actorAgent: userAgent,
     });
 
     // 6. Trả result

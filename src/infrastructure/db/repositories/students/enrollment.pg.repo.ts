@@ -83,6 +83,8 @@ export class EnrollmentPgRepo implements IEnrollmentRepo {
       `SELECT e.id AS enrollment_id,
               e.student_id,
               e.status,
+              COALESCE(e.sessions_attended, 0)::int AS sessions_attended,
+              COALESCE(sess.cnt, 0)::int AS sessions_total,
               s.full_name AS student_name,
               s.student_code,
               COALESCE((
@@ -91,18 +93,26 @@ export class EnrollmentPgRepo implements IEnrollmentRepo {
               ), 0) AS unexcused_absence_count
        FROM enrollments e
        JOIN students s ON s.id = e.student_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS cnt FROM sessions s2 WHERE s2.class_id = e.class_id
+       ) sess ON TRUE
        WHERE e.class_id = $1 AND e.status IN ('trial', 'active', 'paused')
        ORDER BY s.full_name ASC`,
       [classId],
     );
-    return result.rows.map((row: any) => ({
-      enrollmentId: row.enrollment_id,
-      studentId: row.student_id,
-      studentName: row.student_name,
-      studentCode: row.student_code ?? null,
-      status: row.status,
-      unexcusedAbsenceCount: Number(row.unexcused_absence_count ?? 0),
-    }));
+    return result.rows.map((row: any) => {
+      const total = Number(row.sessions_total ?? 0);
+      return {
+        enrollmentId: row.enrollment_id,
+        studentId: row.student_id,
+        studentName: row.student_name,
+        studentCode: row.student_code ?? null,
+        status: row.status,
+        unexcusedAbsenceCount: Number(row.unexcused_absence_count ?? 0),
+        sessionsCompleted: Number(row.sessions_attended ?? 0),
+        sessionsTotal: total > 0 ? total : 24,
+      };
+    });
   }
 
   async create(data: Partial<EnrollmentEntity>): Promise<EnrollmentEntity> {

@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 export const ListAuditLogsSchema = z.object({
   actorId:      z.string().uuid('actorId phải là UUID').optional(),
-  domain:       z.enum(['AUTH', 'USER', 'CLASS', 'ENROLLMENT', 'ATTENDANCE', 'FINANCE', 'STAFF', 'SYSTEM']).optional(),
+  domain:       z.enum(['AUTH', 'USER', 'CLASS', 'ENROLLMENT', 'ATTENDANCE', 'FINANCE', 'STAFF', 'SYSTEM', 'HTTP']).optional(),
   actorCode:    z.string().min(1).optional(),
   action:       z.string().min(1).optional(),
   actionPrefix: z.string().min(1).optional(),

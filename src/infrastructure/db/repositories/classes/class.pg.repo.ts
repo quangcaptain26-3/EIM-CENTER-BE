@@ -9,12 +9,27 @@ export class ClassPgRepo implements IClassRepo {
 
   async findById(id: string): Promise<ClassEntity | null> {
     const result = await this.db.query(
-      `SELECT c.*, p.code as "programCode", r.room_code as "roomCode"
+      `SELECT
+         c.*,
+         p.code AS "programCode",
+         p.name AS "programName",
+         r.room_code AS "roomCode",
+         u.id AS "mainTeacherId",
+         u.full_name AS "mainTeacherName",
+         COALESCE(ec.cnt, 0)::int AS "enrollmentCount"
        FROM classes c
        LEFT JOIN programs p ON c.program_id = p.id
        LEFT JOIN rooms r ON c.room_id = r.id
+       LEFT JOIN class_staff cs_main
+         ON cs_main.class_id = c.id AND cs_main.effective_to_session IS NULL
+       LEFT JOIN users u ON u.id = cs_main.teacher_id AND u.deleted_at IS NULL
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS cnt
+         FROM enrollments e
+         WHERE e.class_id = c.id AND e.status IN ('trial', 'active')
+       ) ec ON TRUE
        WHERE c.id = $1`,
-      [id]
+      [id],
     );
     if (!result.rows[0]) return null;
     return new ClassEntity(result.rows[0]);
@@ -22,12 +37,27 @@ export class ClassPgRepo implements IClassRepo {
 
   async findByCode(code: string): Promise<ClassEntity | null> {
     const result = await this.db.query(
-      `SELECT c.*, p.code as "programCode", r.room_code as "roomCode"
+      `SELECT
+         c.*,
+         p.code AS "programCode",
+         p.name AS "programName",
+         r.room_code AS "roomCode",
+         u.id AS "mainTeacherId",
+         u.full_name AS "mainTeacherName",
+         COALESCE(ec.cnt, 0)::int AS "enrollmentCount"
        FROM classes c
        LEFT JOIN programs p ON c.program_id = p.id
        LEFT JOIN rooms r ON c.room_id = r.id
+       LEFT JOIN class_staff cs_main
+         ON cs_main.class_id = c.id AND cs_main.effective_to_session IS NULL
+       LEFT JOIN users u ON u.id = cs_main.teacher_id AND u.deleted_at IS NULL
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS cnt
+         FROM enrollments e
+         WHERE e.class_id = c.id AND e.status IN ('trial', 'active')
+       ) ec ON TRUE
        WHERE c.class_code = $1`,
-      [code]
+      [code],
     );
     if (!result.rows[0]) return null;
     return new ClassEntity(result.rows[0]);

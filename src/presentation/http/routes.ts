@@ -242,7 +242,7 @@ const salaryLogRepo = new SalaryLogPgRepo(db);
 
 // Auth use cases
 const loginUsecase = new LoginUseCase(userRepo, sessionRepo, auditLogRepo, passwordHasher, jwtProvider);
-const refreshUsecase = new RefreshUseCase(sessionRepo, userRepo, jwtProvider);
+const refreshUsecase = new RefreshUseCase(sessionRepo, userRepo, jwtProvider, auditLogRepo);
 const logoutUsecase = new LogoutUseCase(sessionRepo, auditLogRepo, jwtProvider);
 const meUsecase = new MeUseCase(userRepo);
 const createUserUsecase = new CreateUserUseCase(userRepo, roleRepo, salaryLogRepo, auditLogRepo, passwordHasher, db);
@@ -654,7 +654,7 @@ const dashboardController = createDashboardController(dashboardStatsUsecase);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 // Shared helpers
-const authenticate = authMiddleware(jwtProvider, userRepo);
+const authenticate = authMiddleware(jwtProvider, userRepo, auditWriter);
 const rbac = (...actions: string[]) => authorize(rbacService, ...actions);
 
 /**

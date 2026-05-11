@@ -1,0 +1,542 @@
+# Mô tả bảng CSDL EIM Center
+# Nguồn: database/migrations/*.sql (PostgreSQL)
+# Định dạng: bảng Markdown (| và ---)
+
+---
+
+## Tổng quan — đã kiểm tra lại toàn repo
+
+Đã quét lệnh `CREATE TABLE` / `CREATE MATERIALIZED VIEW` trong **toàn bộ** `d:\Final-DoAn\**/*.sql` (tháng 4/2026). Trong workspace **chỉ có một cụm schema** cho backend này: **24 bảng** vật lý + **2 materialized view**. File `database/seeds/*.sql` và `database/scripts/*.sql` **không tạo bảng mới** — chỉ INSERT hoặc gọi migration.
+
+Nếu bạn nhớ “nhiều bảng” hơn, thường là do: (1) tài liệu đồ án tách từng **khối chức năng** thành nhiều “bảng” nhỏ trên giấy; (2) **bảng khác** ở project/DB khác không nằm trong `Final-DoAn`; (3) nhầm **entity/DTO** trong code với bảng SQL (một bảng có thể JOIN ra nhiều “khái niệm” trên UI).
+
+### Danh sách đủ 24 bảng + 2 MV (mục lục)
+
+| STT | Tên đối tượng | Loại | File migration |
+| --- | --- | --- | --- |
+| 1 | roles | TABLE | 02_auth.sql |
+| 2 | users | TABLE | 02_auth.sql |
+| 3 | salary_change_logs | TABLE | 02_auth.sql |
+| 4 | user_sessions | TABLE | 02_auth.sql |
+| 5 | rooms | TABLE | 03_facility.sql |
+| 6 | holidays | TABLE | 03_facility.sql |
+| 7 | programs | TABLE | 04_programs_classes.sql |
+| 8 | classes | TABLE | 04_programs_classes.sql |
+| 9 | class_staff | TABLE | 04_programs_classes.sql |
+| 10 | sessions | TABLE | 05_sessions.sql |
+| 11 | session_covers | TABLE | 05_sessions.sql |
+| 12 | students | TABLE | 06_students.sql + cột deleted_at (12_students_deleted_at.sql) |
+| 13 | enrollments | TABLE | 06_students.sql |
+| 14 | enrollment_history | TABLE | 06_students.sql |
+| 15 | pause_requests | TABLE | 06_students.sql |
+| 16 | transfer_requests | TABLE | 06_students.sql |
+| 17 | attendance | TABLE | 07_attendance.sql |
+| 18 | makeup_sessions | TABLE | 07_attendance.sql |
+| 19 | receipts | TABLE | 08_finance.sql |
+| 20 | refund_requests | TABLE | 08_finance.sql |
+| 21 | payroll_records | TABLE | 09_payroll.sql |
+| 22 | payroll_session_details | TABLE | 09_payroll.sql |
+| 23 | audit_logs | TABLE | 10_audit_search.sql |
+| 24 | audit_logs_archive | TABLE | 10_audit_search.sql (LIKE audit_logs) |
+| 25 | mv_search_students | MATERIALIZED VIEW | 10_audit_search.sql |
+| 26 | mv_search_users | MATERIALIZED VIEW | 10_audit_search.sql |
+
+**Không có bảng PostgreSQL nào khác** trong migration `11_triggers_constraints.sql` (chỉ trigger/constraint), `01_extensions.sql` (extension + function).
+
+---
+
+## Bảng: roles — Danh mục vai trò
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã vai trò | Primary Key, default uuid_generate_v4() |
+| 2 | code | varchar(20) | Mã vai trò (ADMIN, ACADEMIC, …) | Unique, Not Null |
+| 3 | name | varchar(100) | Tên hiển thị vai trò | Not Null |
+| 4 | permissions | jsonb | Danh sách quyền | Not Null, default '[]' |
+| 5 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: users — Người dùng hệ thống
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã người dùng | Primary Key |
+| 2 | user_code | varchar(20) | Mã nhân viên (EIM-ADM/NHV/…) | Unique, Not Null |
+| 3 | email | varchar(255) | Email đăng nhập | Unique, Not Null, có index |
+| 4 | password_hash | varchar(255) | Mật khẩu đã băm | Not Null |
+| 5 | role_id | uuid | Liên kết vai trò | FK → roles.id, Not Null, có index |
+| 6 | is_active | boolean | Tài khoản còn hoạt động | Not Null, default true |
+| 7 | full_name | varchar(200) | Họ và tên | Not Null |
+| 8 | gender | varchar(10) | Giới tính | CHECK male/female/other |
+| 9 | dob | date | Ngày sinh | Có thể null |
+| 10 | phone | varchar(20) | Số điện thoại | Có thể null |
+| 11 | address | text | Địa chỉ | Có thể null |
+| 12 | cccd | varchar(20) | CCCD/CMND | Unique, có thể null |
+| 13 | nationality | varchar(100) | Quốc tịch | Default 'Việt Nam' |
+| 14 | ethnicity | varchar(100) | Dân tộc | Có thể null |
+| 15 | religion | varchar(100) | Tôn giáo | Có thể null |
+| 16 | education_level | varchar(100) | Trình độ học vấn | Có thể null |
+| 17 | major | varchar(200) | Chuyên ngành | Có thể null |
+| 18 | start_date | date | Ngày bắt đầu làm | Có thể null |
+| 19 | salary_per_session | decimal(12,0) | Lương theo buổi (GV) | Có thể null |
+| 20 | allowance | decimal(12,0) | Phụ cấp | Default 0 |
+| 21 | created_by | uuid | Người tạo hồ sơ | FK → users.id |
+| 22 | created_at | timestamptz | Thời điểm tạo | Default now() |
+| 23 | updated_at | timestamptz | Thời điểm cập nhật | Default now(), trigger tự cập nhật |
+| 24 | deleted_at | timestamptz | Soft delete | Null = chưa xóa, có index |
+
+---
+
+## Bảng: salary_change_logs — Lịch sử thay đổi lương
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã bản ghi | Primary Key |
+| 2 | user_id | uuid | Nhân viên bị đổi lương | FK → users.id, Not Null |
+| 3 | old_salary_per_session | decimal(12,0) | Lương/buổi cũ | Có thể null |
+| 4 | new_salary_per_session | decimal(12,0) | Lương/buổi mới | Có thể null |
+| 5 | old_allowance | decimal(12,0) | Phụ cấp cũ | Có thể null |
+| 6 | new_allowance | decimal(12,0) | Phụ cấp mới | Có thể null |
+| 7 | changed_by | uuid | Người thực hiện thay đổi | FK → users.id, Not Null |
+| 8 | changed_at | timestamptz | Thời điểm thay đổi | Default now() |
+| 9 | reason | text | Lý do | Not Null |
+
+---
+
+## Bảng: user_sessions — Phiên đăng nhập (refresh token)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã phiên | Primary Key |
+| 2 | user_id | uuid | Người dùng | FK → users.id, Not Null, có index |
+| 3 | token_hash | varchar(500) | Hash refresh token | Unique, Not Null, có index |
+| 4 | ip_address | varchar(45) | IP truy cập | Có thể null |
+| 5 | user_agent | text | User-Agent trình duyệt | Có thể null |
+| 6 | expires_at | timestamptz | Hết hạn token | Not Null |
+| 7 | revoked_at | timestamptz | Thu hồi phiên | Có thể null |
+| 8 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: rooms — Phòng học
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã phòng | Primary Key |
+| 2 | room_code | varchar(20) | Mã phòng (P.101, …) | Unique, Not Null |
+| 3 | capacity | smallint | Sức chứa | Default 15 |
+| 4 | is_active | boolean | Phòng còn dùng | Default true |
+| 5 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: holidays — Ngày lễ / nghỉ
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã ngày lễ | Primary Key |
+| 2 | holiday_date | date | Ngày (seed mẫu có thể dùng năm 2000) | Not Null, UNIQUE |
+| 3 | name | varchar(200) | Tên ngày lễ | Not Null |
+| 4 | is_recurring | boolean | Lặp theo tháng+ngày mỗi năm | Default false |
+| 5 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: programs — Chương trình / cấp độ (KINDY, STARTERS, …)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã chương trình | Primary Key |
+| 2 | code | varchar(20) | Mã (KINDY, STARTERS, …) | Unique, Not Null |
+| 3 | name | varchar(100) | Tên hiển thị | Not Null |
+| 4 | default_fee | decimal(12,0) | Học phí mặc định | Not Null |
+| 5 | total_sessions | smallint | Tổng số buổi khóa | Default 24 |
+| 6 | level_order | smallint | Thứ tự cấp (1→4) | Unique, Not Null |
+| 7 | is_active | boolean | Còn mở đăng ký | Default true |
+| 8 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: classes — Lớp học
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã lớp | Primary Key |
+| 2 | class_code | varchar(20) | Mã lớp (EIM-LK/LS/…) | Unique, Not Null |
+| 3 | program_id | uuid | Chương trình | FK → programs.id, Not Null, có index |
+| 4 | room_id | uuid | Phòng học | FK → rooms.id, Not Null |
+| 5 | shift | smallint | Ca (1 hoặc 2) | Not Null, CHECK (1,2) |
+| 6 | schedule_days | smallint[] | Các thứ trong tuần {2,4} | Not Null |
+| 7 | min_capacity | smallint | Sĩ số tối thiểu | Default 5 |
+| 8 | max_capacity | smallint | Sĩ số tối đa | Default 12 |
+| 9 | status | varchar(20) | Trạng thái lớp | Default pending, CHECK pending/active/closed, có index |
+| 10 | start_date | date | Ngày khai giảng | Có thể null |
+| 11 | created_by | uuid | Người tạo | FK → users.id |
+| 12 | created_at | timestamptz | Thời điểm tạo | Default now() |
+| 13 | updated_at | timestamptz | Thời điểm cập nhật | Trigger fn_set_updated_at |
+
+---
+
+## Bảng: class_staff — Phân công giáo viên chính theo lớp
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã bản ghi | Primary Key |
+| 2 | class_id | uuid | Lớp | FK → classes.id, Not Null, có index |
+| 3 | teacher_id | uuid | Giáo viên | FK → users.id, Not Null, có index |
+| 4 | effective_from_session | smallint | Hiệu lực từ buổi số | Not Null, default 1 |
+| 5 | effective_to_session | smallint | Hiệu lực đến buổi (null = hết khóa) | Có thể null |
+| 6 | assigned_by | uuid | Người phân công | FK → users.id, Not Null |
+| 7 | assigned_at | timestamptz | Thời điểm phân công | Default now() |
+| 8 | — | — | Ràng buộc 1 GV active/lớp | UNIQUE(class_id, effective_to_session) DEFERRABLE |
+
+---
+
+## Bảng: sessions — Buổi học của lớp
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã buổi học | Primary Key |
+| 2 | class_id | uuid | Lớp | FK → classes.id, Not Null, có index |
+| 3 | teacher_id | uuid | GV chính (snapshot lúc tạo) | FK → users.id, Not Null, có index |
+| 4 | session_no | smallint | Số thứ tự buổi (1–24) | Not Null, UNIQUE(class_id, session_no) |
+| 5 | session_date | date | Ngày học | Not Null, có index |
+| 6 | shift | smallint | Ca | Not Null, CHECK (1,2) |
+| 7 | status | varchar(20) | Trạng thái buổi | Default pending, CHECK pending/completed/cancelled, có index |
+| 8 | session_note | text | Ghi chú buổi | Có thể null |
+| 9 | original_date | date | Ngày gốc khi đổi lịch | Có thể null |
+| 10 | reschedule_reason | text | Lý do đổi lịch | Có thể null |
+| 11 | rescheduled_by | uuid | Người đổi lịch | FK → users.id |
+| 12 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: session_covers — Giáo viên dạy thay một buổi
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | session_id | uuid | Buổi được cover | Primary Key, FK → sessions.id |
+| 2 | cover_teacher_id | uuid | GV dạy thay | FK → users.id, Not Null |
+| 3 | assigned_by | uuid | Người giao cover | FK → users.id, Not Null |
+| 4 | assigned_at | timestamptz | Thời điểm giao | Default now() |
+| 5 | reason | text | Lý do | Có thể null |
+| 6 | status | varchar(20) | Trạng thái cover | Default pending, CHECK pending/confirmed/completed/cancelled |
+| 7 | confirmed_at | timestamptz | Thời điểm xác nhận | Có thể null |
+
+---
+
+## Bảng: students — Học viên
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã học viên | Primary Key |
+| 2 | student_code | varchar(20) | Mã HS (EIM-HS-…) | Unique, Not Null |
+| 3 | full_name | varchar(200) | Họ và tên | Not Null |
+| 4 | dob | date | Ngày sinh | Có thể null |
+| 5 | gender | varchar(10) | Giới tính | CHECK male/female/other |
+| 6 | address | text | Địa chỉ | Có thể null |
+| 7 | school_name | varchar(200) | Trường đang học | Có thể null |
+| 8 | parent_name | varchar(200) | Tên phụ huynh | Có thể null |
+| 9 | parent_phone | varchar(20) | SĐT phụ huynh | Có index |
+| 10 | parent_phone2 | varchar(20) | SĐT phụ huynh 2 | Có thể null |
+| 11 | parent_zalo | varchar(20) | Zalo phụ huynh | Có thể null |
+| 12 | current_level | varchar(20) | Cấp hiện tại | FK → programs(code) |
+| 13 | test_result | text | Kết quả kiểm tra | Có thể null |
+| 14 | is_active | boolean | Hồ sơ còn hoạt động | Default true, có index |
+| 15 | created_by | uuid | Người tạo | FK → users.id |
+| 16 | created_at | timestamptz | Thời điểm tạo | Default now() |
+| 17 | updated_at | timestamptz | Thời điểm cập nhật | Trigger updated_at |
+| 18 | deleted_at | timestamptz | Soft delete (migration 12) | Có index |
+
+---
+
+## Bảng: enrollments — Ghi danh học viên vào lớp
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã ghi danh | Primary Key |
+| 2 | student_id | uuid | Học viên | FK → students.id, Not Null, có index |
+| 3 | program_id | uuid | Chương trình | FK → programs.id, Not Null |
+| 4 | class_id | uuid | Lớp | FK → classes.id, Not Null, có index |
+| 5 | status | varchar(20) | Trạng thái ghi danh | Not Null, default pending, CHECK nhiều trạng thái, có index |
+| 6 | tuition_fee | decimal(12,0) | Học phí | Not Null; immutable sau paid_at (trigger) |
+| 7 | sessions_attended | smallint | Số buổi có mặt | Default 0, sync từ attendance |
+| 8 | sessions_absent | smallint | Số buổi vắng | Default 0, sync từ attendance |
+| 9 | class_transfer_count | smallint | Số lần chuyển lớp | Default 0, CHECK ≤ 1 |
+| 10 | makeup_blocked | boolean | Chặn đăng ký học bù | Default false |
+| 11 | enrolled_at | timestamptz | Thời điểm ghi danh | Default now() |
+| 12 | paid_at | timestamptz | Đã thanh toán | Có thể null |
+| 13 | created_by | uuid | Người tạo | FK → users.id |
+| 14 | created_at | timestamptz | Thời điểm tạo | Default now() |
+| 15 | updated_at | timestamptz | Thời điểm cập nhật | Trigger |
+
+---
+
+## Bảng: enrollment_history — Lịch sử thay đổi trạng thái ghi danh
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã bản ghi | Primary Key |
+| 2 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 3 | action | varchar(50) | Hành động | Not Null, CHECK danh sách action trong migration |
+| 4 | from_status | varchar(20) | Trạng thái trước | Có thể null |
+| 5 | to_status | varchar(20) | Trạng thái sau | Có thể null |
+| 6 | from_class_id | uuid | Lớp cũ | FK → classes.id |
+| 7 | to_class_id | uuid | Lớp mới | FK → classes.id |
+| 8 | from_program_id | uuid | Chương trình cũ | FK → programs.id |
+| 9 | to_program_id | uuid | Chương trình mới | FK → programs.id |
+| 10 | sessions_at_action | smallint | Số buổi tại thời điểm action | Có thể null |
+| 11 | changed_by | uuid | Người thực hiện | FK → users.id |
+| 12 | action_date | timestamptz | Thời điểm | Default now() |
+| 13 | note | text | Ghi chú | Có thể null |
+
+---
+
+## Bảng: pause_requests — Yêu cầu bảo lưu khóa học
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã yêu cầu | Primary Key |
+| 2 | request_code | varchar(20) | Mã (EIM-BL-…) | Unique, Not Null |
+| 3 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 4 | requested_by | uuid | Người gửi | FK → users.id, Not Null |
+| 5 | reason | text | Lý do | Not Null |
+| 6 | sessions_attended_at_request | smallint | Số buổi đã học khi gửi | Not Null |
+| 7 | status | varchar(20) | Trạng thái duyệt | Default pending, CHECK pending/approved/rejected |
+| 8 | reviewed_by | uuid | Người duyệt | FK → users.id |
+| 9 | reviewed_at | timestamptz | Thời điểm duyệt | Có thể null |
+| 10 | review_note | text | Ghi chú duyệt | Có thể null |
+| 11 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: transfer_requests — Chuyển nhượng suất học giữa học viên
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã yêu cầu | Primary Key |
+| 2 | from_student_id | uuid | Học viên chuyển đi | FK → students.id, Not Null |
+| 3 | to_student_id | uuid | Học viên nhận | FK → students.id, Not Null |
+| 4 | from_enrollment_id | uuid | Ghi danh nguồn | FK → enrollments.id, Not Null |
+| 5 | to_enrollment_id | uuid | Ghi danh đích (sau khi tạo) | FK → enrollments.id |
+| 6 | sessions_remaining | smallint | Số buổi còn lại | Not Null |
+| 7 | amount_transferred | decimal(12,0) | Số tiền chuyển | Not Null |
+| 8 | status | varchar(20) | Trạng thái | Default pending, CHECK pending/completed/cancelled |
+| 9 | debit_receipt_id | uuid | Phiếu âm | FK → receipts.id (thêm ở 08_finance) |
+| 10 | credit_receipt_id | uuid | Phiếu dương | FK → receipts.id |
+| 11 | processed_by | uuid | Người xử lý | FK → users.id |
+| 12 | processed_at | timestamptz | Thời điểm xử lý | Có thể null |
+| 13 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: attendance — Điểm danh theo buổi
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã bản ghi | Primary Key |
+| 2 | session_id | uuid | Buổi học | FK → sessions.id, Not Null, có index |
+| 3 | student_id | uuid | Học viên | FK → students.id, Not Null, có index |
+| 4 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 5 | status | varchar(30) | Trạng thái điểm danh | Not Null, CHECK present/late/absent_excused/absent_unexcused |
+| 6 | note | text | Ghi chú | Có thể null |
+| 7 | recorded_by | uuid | Người điểm danh | FK → users.id, Not Null |
+| 8 | recorded_at | timestamptz | Thời điểm ghi | Default now() |
+| 9 | updated_by | uuid | Người sửa | FK → users.id |
+| 10 | updated_at | timestamptz | Thời điểm sửa | Có thể null |
+| 11 | — | — | Một HS một record/buổi | UNIQUE(session_id, student_id) |
+
+---
+
+## Bảng: makeup_sessions — Buổi học bù
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã buổi bù | Primary Key |
+| 2 | makeup_code | varchar(20) | Mã (EIM-BB-…) | Unique, Not Null |
+| 3 | original_session_id | uuid | Buổi gốc | FK → sessions.id, Not Null |
+| 4 | original_attendance_id | uuid | Bản điểm danh vắng có phép | FK → attendance.id, Not Null, UNIQUE (1 vắng → 1 bù) |
+| 5 | student_id | uuid | Học viên | FK → students.id, Not Null |
+| 6 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 7 | makeup_date | date | Ngày học bù | Not Null, có index |
+| 8 | room_id | uuid | Phòng | FK → rooms.id, Not Null |
+| 9 | teacher_id | uuid | Giáo viên | FK → users.id, Not Null |
+| 10 | shift | smallint | Ca | Not Null, CHECK (1,2) |
+| 11 | status | varchar(20) | Trạng thái | Default pending, CHECK pending/completed/cancelled, có index |
+| 12 | note | text | Ghi chú | Có thể null |
+| 13 | created_by | uuid | Người tạo | FK → users.id, Not Null |
+| 14 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: receipts — Phiếu thu / phiếu âm (hoàn tiền)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã phiếu | Primary Key |
+| 2 | receipt_code | varchar(20) | Mã (EIM-PT-…) | Unique, Not Null |
+| 3 | payer_name | varchar(200) | Tên người nộp | Not Null |
+| 4 | payer_address | text | Địa chỉ người nộp | Có thể null |
+| 5 | student_id | uuid | Học viên | FK → students.id, Not Null, có index |
+| 6 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 7 | reason | text | Lý do thu/hoàn | Not Null |
+| 8 | amount | decimal(12,0) | Số tiền (+ thu, − hoàn) | Not Null |
+| 9 | amount_in_words | varchar(500) | Bằng chữ | App layer |
+| 10 | payment_method | varchar(20) | Hình thức | CHECK cash/transfer |
+| 11 | payment_date | date | Ngày thanh toán | Not Null, có index |
+| 12 | note | text | Ghi chú | Có thể null |
+| 13 | created_by | uuid | Người lập phiếu | FK → users.id, Not Null |
+| 14 | payer_signature_name | varchar(200) | Tên ký | Có thể null |
+| 15 | voided_by_receipt_id | uuid | Liên kết phiếu âm ↔ gốc | FK → receipts.id |
+| 16 | transfer_group_id | uuid | Nhóm giao dịch chuyển nhượng | Có thể null |
+| 17 | created_at | timestamptz | Thời điểm tạo | Default now(), immutable, không DELETE (trigger) |
+
+---
+
+## Bảng: refund_requests — Yêu cầu hoàn học phí
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã yêu cầu | Primary Key |
+| 2 | request_code | varchar(20) | Mã (EIM-HP-…) | Unique, Not Null |
+| 3 | enrollment_id | uuid | Ghi danh | FK → enrollments.id, Not Null, có index |
+| 4 | reason_type | varchar(50) | Loại lý do | Not Null, CHECK các giá trị trong migration |
+| 5 | reason_detail | text | Chi tiết lý do | Not Null |
+| 6 | refund_amount | decimal(12,0) | Số tiền hoàn | Not Null, default 0 |
+| 7 | status | varchar(20) | Trạng thái | Default pending, CHECK pending/approved/rejected/completed, có index |
+| 8 | requested_by | uuid | Người gửi | FK → users.id, Not Null |
+| 9 | reviewed_by | uuid | Người duyệt | FK → users.id |
+| 10 | reviewed_at | timestamptz | Thời điểm duyệt | Có thể null |
+| 11 | review_note | text | Ghi chú duyệt | Có thể null |
+| 12 | receipt_id | uuid | Phiếu âm khi hoàn thực tế | FK → receipts.id |
+| 13 | created_at | timestamptz | Thời điểm tạo | Default now() |
+
+---
+
+## Bảng: payroll_records — Bảng lương chốt theo tháng (giáo viên)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã bản ghi lương | Primary Key |
+| 2 | payroll_code | varchar(20) | Mã (EIM-PL-…) | Unique, Not Null |
+| 3 | teacher_id | uuid | Giáo viên | FK → users.id, Not Null, có index |
+| 4 | period_month | smallint | Tháng (1–12) | Not Null |
+| 5 | period_year | smallint | Năm | Not Null |
+| 6 | sessions_count | smallint | Số buổi tính lương | Not Null, default 0 |
+| 7 | salary_per_session_snapshot | decimal(12,0) | Lương/buổi (snapshot) | Not Null |
+| 8 | allowance_snapshot | decimal(12,0) | Phụ cấp (snapshot) | Not Null, default 0 |
+| 9 | total_salary | decimal(12,0) | Tổng lương | Not Null |
+| 10 | finalized_by | uuid | Người chốt | FK → users.id, Not Null |
+| 11 | finalized_at | timestamptz | Thời điểm chốt | Default now() |
+| 12 | — | — | Một GV một kỳ | UNIQUE(teacher_id, period_month, period_year) |
+
+---
+
+## Bảng: payroll_session_details — Chi tiết buổi trong bảng lương
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã dòng chi tiết | Primary Key |
+| 2 | payroll_id | uuid | Bảng lương | FK → payroll_records.id, Not Null, có index |
+| 3 | session_id | uuid | Buổi học | FK → sessions.id, Not Null |
+| 4 | session_date | date | Ngày buổi (snapshot) | Not Null |
+| 5 | class_code | varchar(20) | Mã lớp (snapshot) | Not Null |
+| 6 | was_cover | boolean | Có phải buổi dạy thay | Not Null, default false |
+
+---
+
+## Bảng: audit_logs — Nhật ký hệ thống (append-only)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã sự kiện | Primary Key |
+| 2 | event_time | timestamptz | Thời điểm | Not Null, default now(), có index DESC |
+| 3 | actor_id | uuid | Người thực hiện | Có thể null, có index |
+| 4 | actor_code | varchar(20) | Mã actor (snapshot) | Có thể null |
+| 5 | actor_role | varchar(20) | Vai trò (snapshot) | Có thể null |
+| 6 | actor_ip | varchar(45) | IP | Có thể null |
+| 7 | actor_agent | text | User-Agent | Có thể null |
+| 8 | action | varchar(100) | Hành động (VD AUTH:login) | Not Null, có index |
+| 9 | entity_type | varchar(50) | Loại thực thể | Có thể null |
+| 10 | entity_id | uuid | ID thực thể | Có thể null |
+| 11 | entity_code | varchar(20) | Mã thực thể (snapshot) | Có thể null |
+| 12 | old_values | jsonb | Giá trị cũ | Có thể null |
+| 13 | new_values | jsonb | Giá trị mới | Có thể null |
+| 14 | diff | jsonb | Chênh lệch field | Có thể null |
+| 15 | description | text | Mô tả ngắn | Có thể null |
+| 16 | metadata | jsonb | Metadata bổ sung | Có thể null |
+| 17 | request_id | uuid | ID request trace | Có thể null |
+| 18 | — | — | Không UPDATE/DELETE | Trigger 11_triggers |
+
+---
+
+## Bảng: audit_logs_archive — Lưu trữ log cũ (cấu trúc = audit_logs)
+
+Cùng cột với `audit_logs` (`LIKE audit_logs INCLUDING ALL`). Dùng chứa log sau khi job chuyển khỏi bảng chính (ví dụ > 90 ngày).
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã sự kiện | Primary Key (cấu trúc giống audit_logs) |
+| 2 | event_time | timestamptz | Thời điểm | Not Null, default now() |
+| 3 | actor_id | uuid | Người thực hiện | Có thể null |
+| 4 | actor_code | varchar(20) | Mã actor (snapshot) | Có thể null |
+| 5 | actor_role | varchar(20) | Vai trò (snapshot) | Có thể null |
+| 6 | actor_ip | varchar(45) | IP | Có thể null |
+| 7 | actor_agent | text | User-Agent | Có thể null |
+| 8 | action | varchar(100) | Hành động | Not Null |
+| 9 | entity_type | varchar(50) | Loại thực thể | Có thể null |
+| 10 | entity_id | uuid | ID thực thể | Có thể null |
+| 11 | entity_code | varchar(20) | Mã thực thể (snapshot) | Có thể null |
+| 12 | old_values | jsonb | Giá trị cũ | Có thể null |
+| 13 | new_values | jsonb | Giá trị mới | Có thể null |
+| 14 | diff | jsonb | Chênh lệch field | Có thể null |
+| 15 | description | text | Mô tả ngắn | Có thể null |
+| 16 | metadata | jsonb | Metadata bổ sung | Có thể null |
+| 17 | request_id | uuid | ID request trace | Có thể null |
+
+---
+
+## Materialized view: mv_search_students — Tìm kiếm học sinh (FTS)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã học viên | UNIQUE index, từ students |
+| 2 | student_code | varchar(20) | Mã HS | |
+| 3 | full_name | varchar(200) | Họ tên | |
+| 4 | dob | date | Ngày sinh | |
+| 5 | parent_name | varchar(200) | Phụ huynh | |
+| 6 | parent_phone | varchar(20) | SĐT | GIN phone index |
+| 7 | parent_phone2 | varchar(20) | SĐT 2 | |
+| 8 | school_name | varchar(200) | Trường | |
+| 9 | search_vector | tsvector | Full-text (unaccent simple) | GIN index; REFRESH sau thay đổi students |
+
+---
+
+## Materialized view: mv_search_users — Tìm kiếm nhân viên (FTS)
+
+| STT | Tên trường | Kiểu dữ liệu | Ý nghĩa | Ghi chú |
+| --- | --- | --- | --- | --- |
+| 1 | id | uuid | Mã user | UNIQUE index |
+| 2 | user_code | varchar(20) | Mã NV | |
+| 3 | full_name | varchar(200) | Họ tên | |
+| 4 | phone | varchar(20) | SĐT | |
+| 5 | cccd | varchar(20) | CCCD | Có index |
+| 6 | role_code | varchar(20) | Mã vai trò | JOIN roles |
+| 7 | search_vector | tsvector | Full-text | GIN index; users.deleted_at IS NULL |
+
+---
+
+## Ghi chú không phải bảng (migration 01)
+
+| Loại | Tên | Ý nghĩa |
+| --- | --- | --- |
+| Extension | uuid-ossp, unaccent, pg_trgm | UUID, bỏ dấu, tìm kiếm mờ |
+| Function | generate_eim_code(prefix) | Sinh mã EIM-{prefix}-##### |
+| Function | fn_set_updated_at() | Trigger cập nhật updated_at |
+| Function | effective_teacher_id(session_id) | GV thực tế (cover completed hoặc GV chính) — định nghĩa 05_sessions |
+| Function | enrollment_debt(enrollment_id) | Công nợ = tuition_fee − SUM(receipts) — định nghĩa 08_finance |
+
+---
+
+Kết thúc file.

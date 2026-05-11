@@ -2,10 +2,12 @@
  * Ghi / cập nhật điểm danh theo buổi — Q3, Q14, Q25, Q30.
  *
  * Cách vận hành:
- * - Trạng thái buổi cho phép: `pending` hoặc `completed` (cho phép sửa sau khi đã submit); không cho buổi `cancelled`.
- * - GV (`TEACHER`) chỉ được điểm danh nếu `findEffectiveTeacherId(session)` = chính họ (GV cover điểm danh thay GV chính khi đã gán cover).
- * - Điểm danh không phải ngày hôm nay (timezone HCM): chỉ `ADMIN` được sửa (Q25 — sửa lịch sử có kiểm soát).
- * - Khi đủ điều kiện nghiệp vụ, cập nhật session `completed`; trigger DB đồng bộ `sessions_attended` / vắng / makeup_blocked (Q14–Q15).
+ * - Trạng thái buổi cho phép: `pending` hoặc `completed`; không cho buổi `cancelled`.
+ * - GV (`TEACHER`): chỉ buổi `pending`, **đúng ngày học** (timezone HCM), và `findEffectiveTeacherId` = chính họ.
+ *   Sau khi hoàn tất (buổi `completed`), GV **không** được sửa — chỉ `ACADEMIC` chỉnh; mọi lần ghi đều audit.
+ * - `ADMIN`: được điểm danh khi buổi còn `pending` (mọi ngày); **không** được sửa khi buổi đã `completed` (chỉ xem audit, học vụ xử lý).
+ * - `ACADEMIC`: được ghi/sửa điểm danh cả `pending` và `completed`, kể cả ngày không phải hôm nay.
+ * - Khi ghi thành công, cập nhật session `completed`; trigger DB đồng bộ `sessions_attended` / vắng / makeup_blocked (Q14–Q15).
  * - Enrollment chỉ `completed` khi nghiệp vụ đủ 24 buổi đã xử lý — thường không tự complete chỉ từ một lần điểm danh (xem Q30 luồng xác nhận hoàn thành).
  */
 import { IAttendanceRepo } from '../../../domain/students/repositories/attendance.repo.port';
@@ -90,7 +92,30 @@ export class RecordAttendanceUseCase {
       );
     }
 
+    if (session.status === 'completed' && actor.role === 'ADMIN') {
+      throw new AppError(
+        ERROR_CODES.ACCESS_DENIED,
+        'Giám đốc không chỉnh sửa điểm danh buổi đã hoàn tất; liên hệ học vụ.',
+        403,
+      );
+    }
+
+    if (session.status === 'completed' && actor.role === 'TEACHER') {
+      throw new AppError(
+        ERROR_CODES.ACCESS_DENIED,
+        'Giáo viên không được sửa sau khi đã hoàn tất điểm danh. Liên hệ học vụ.',
+        403,
+      );
+    }
+
     if (actor.role === 'TEACHER') {
+      if (!isTodaySession) {
+        throw new AppError(
+          ERROR_CODES.ACCESS_DENIED,
+          'Giáo viên chỉ điểm danh trong ngày học.',
+          403,
+        );
+      }
       const effectiveTeacherId = await this.sessionRepo.findEffectiveTeacherId(sessionId);
       if (effectiveTeacherId !== actor.id) {
         throw new AppError(
@@ -101,15 +126,6 @@ export class RecordAttendanceUseCase {
       }
     } else if (!['ADMIN', 'ACADEMIC'].includes(actor.role)) {
       throw new AppError(ERROR_CODES.ACCESS_DENIED, 'Không có quyền điểm danh', 403);
-    }
-
-    // Rule: sửa điểm danh sau ngày chỉ Admin được làm.
-    if (!isTodaySession && actor.role !== 'ADMIN') {
-      throw new AppError(
-        ERROR_CODES.ACCESS_DENIED,
-        'Chỉ Admin được sửa điểm danh sau ngày học',
-        403,
-      );
     }
 
     const prevRows = await this.attendanceRepo.findBySession(sessionId);

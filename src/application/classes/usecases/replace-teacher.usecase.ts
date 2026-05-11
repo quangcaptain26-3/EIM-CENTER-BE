@@ -1,5 +1,5 @@
 /**
- * Thay GV chính giữa khóa (chỉ ADMIN) — OVERVIEW §8.5, RBAC OVERVIEW §3.2.
+ * Thay GV chính giữa khóa (ADMIN + Học vụ ACADEMIC).
  *
  * Cách vận hành:
  * - Chọn buổi bắt đầu + GV mới; kiểm conflict bằng `ConflictCheckerService`.
@@ -30,10 +30,10 @@ export class ReplaceTeacherUseCase {
     newTeacherId: string,
     chosenSessionNo?: number,
   ) {
-    if (actorRole !== 'ADMIN') {
+    if (actorRole !== 'ADMIN' && actorRole !== 'ACADEMIC') {
       throw new AppError(
         ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
-        'Chỉ ADMIN mới thay giáo viên chính lớp đang diễn ra',
+        'Chỉ ADMIN hoặc Học vụ mới thay giáo viên chính lớp đang diễn ra',
         403,
       );
     }
