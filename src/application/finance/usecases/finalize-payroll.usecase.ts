@@ -10,9 +10,10 @@
  * - **Quan trọng (Q22):** `salary_per_session` và `allowance` được đọc lại từ bảng `users` ngay tại bước chốt,
  *   rồi ghi snapshot vào `payroll_records` + chi tiết từng buổi — không dùng lại con số preview cũ.
  *
- * Công thức lương GV (đúng với code dưới đây và OVERVIEW_EIM_v5 §9.2):
- *   Tổng lương = (số buổi tính lương) × salary_per_session_snapshot + allowance_snapshot
+ * Công thức lương GV (đúng với code dưới đây; tài liệu rules/06-teacher-salary.md, OVERVIEW_EIM_v5 §9.2):
+ *   Tổng lương gross = (số buổi tính lương) × salary_per_session_snapshot + allowance_snapshot
  * Trong đó số buổi = số dòng main (không có cover completed) + số dòng cover (GV là cover_teacher).
+ * Roadmap thâm niên / lớp đông / KPI / khấu trừ vắng: rules/06-teacher-salary.md (Phase B–E).
  */
 import { PayrollPeriodDto, PayrollPeriodSchema } from '../dtos/finance.dto';
 import { IPayrollRepo } from '../../../domain/finance/repositories/receipt.repo.port';

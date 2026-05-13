@@ -1,6 +1,9 @@
 /**
  * Xem trước lương GV trước khi chốt (GET /payroll/preview — Q10, Q22).
  *
+ * @see rules/06-teacher-salary.md — công thức gross v1, đếm main/cover/covered, preview vs finalize.
+ * @see rules/EIM_SALARY_FOR_TEACHER.md — mô hình mở rộng (roadmap Phase B–E, chưa trong code).
+ *
  * Cách vận hành:
  * - Nếu đã có `payroll_records` cho (teacherId, tháng, năm) → trả dữ liệu đã chốt (`isFinalized: true`),
  *   không tính lại từ session (bảng lương đã finalized là nguồn sự thật).
