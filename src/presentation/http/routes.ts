@@ -119,7 +119,10 @@ import { ReviewPauseRequestUseCase } from '../../application/students/usecases/r
 import { ResetMakeupBlockedUseCase } from '../../application/students/usecases/reset-makeup-blocked.usecase';
 import { UpgradeProgramUseCase } from '../../application/students/usecases/upgrade-program.usecase';
 import { RecordAttendanceUseCase } from '../../application/students/usecases/record-attendance.usecase';
+import { EditAttendanceUseCase } from '../../application/students/usecases/edit-attendance.usecase';
 import { GetAttendanceHistoryUseCase } from '../../application/students/usecases/get-attendance-history.usecase';
+import { GetSessionAttendanceStatusUseCase } from '../../application/students/usecases/get-session-attendance-status.usecase';
+import { GetSessionAttendanceHistoryUseCase } from '../../application/students/usecases/get-session-attendance-history.usecase';
 import { CreateMakeupSessionUseCase } from '../../application/students/usecases/create-makeup-session.usecase';
 import { CompleteMakeupSessionUseCase } from '../../application/students/usecases/complete-makeup.usecase';
 import { ListMakeupSessionsUseCase } from '../../application/students/usecases/list-makeup-sessions.usecase';
@@ -144,7 +147,7 @@ import {
   TransferEnrollmentSchema,
 } from '../../application/students/dtos/enrollment.dto';
 import {
-  RecordAttendanceSchema,
+  RecordAttendanceBodySchema,
   CreateMakeupSessionSchema,
 } from '../../application/students/dtos/attendance.dto';
 import {
@@ -401,6 +404,14 @@ const recordAttendanceUsecase = new RecordAttendanceUseCase(
   auditLogRepo,
 );
 const getAttendanceHistoryUsecase = new GetAttendanceHistoryUseCase(attendanceRepo);
+const editAttendanceUsecase = new EditAttendanceUseCase(
+  attendanceRepo,
+  classSessionRepo,
+  classRepo,
+  auditLogRepo,
+);
+const getSessionAttendanceStatusUsecase = new GetSessionAttendanceStatusUseCase(db);
+const getSessionAttendanceHistoryUsecase = new GetSessionAttendanceHistoryUseCase(db);
 
 const createMakeupSessionUsecase = new CreateMakeupSessionUseCase(
   makeupSessionRepo,
@@ -539,7 +550,13 @@ const pauseRequestController = createPauseRequestController(
   reviewPauseRequestUsecase,
   { execute: async (p: any) => pauseRequestRepo.findPagedByStatus(p.status ?? 'pending', p.page, p.limit) },
 );
-const attendanceController = createAttendanceController(recordAttendanceUsecase, getAttendanceHistoryUsecase);
+const attendanceController = createAttendanceController(
+  recordAttendanceUsecase,
+  editAttendanceUsecase,
+  getAttendanceHistoryUsecase,
+  getSessionAttendanceStatusUsecase,
+  getSessionAttendanceHistoryUsecase,
+);
 const makeupSessionController = createMakeupSessionController(
   createMakeupSessionUsecase,
   completeMakeupSessionUsecase,
@@ -767,8 +784,28 @@ sessionRouter.post(
   authenticate,
   rbac('attendance:record'),
   requireOwnSession(classSessionRepo, sessionCoverRepo),
-  validate(RecordAttendanceSchema),
+  validate(RecordAttendanceBodySchema),
   attendanceController.recordAttendance,
+);
+sessionRouter.patch(
+  '/:id/attendance',
+  authenticate,
+  rbac('attendance:record'),
+  requireOwnSession(classSessionRepo, sessionCoverRepo),
+  attendanceController.editAttendance,
+);
+sessionRouter.get(
+  '/:id/attendance-status',
+  authenticate,
+  rbac('attendance:record', 'class:read', 'session:read_own'),
+  requireOwnSession(classSessionRepo, sessionCoverRepo),
+  attendanceController.getAttendanceStatus,
+);
+sessionRouter.get(
+  '/:id/attendance-history',
+  authenticate,
+  rbac('*'),
+  attendanceController.getSessionAttendanceHistory,
 );
 
 // Rooms / Programs

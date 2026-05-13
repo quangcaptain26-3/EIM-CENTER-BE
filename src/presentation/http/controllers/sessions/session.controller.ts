@@ -44,6 +44,10 @@ function pickSessionFields(s: Record<string, unknown>) {
     sessionDate: scheduledDate,
     shift: s.shift as number,
     status: s.status as string,
+    submittedAt: (s.submittedAt ?? s.submitted_at) as string | Date | undefined,
+    submittedBy: (s.submittedBy ?? s.submitted_by) as string | undefined,
+    lastEditedAt: (s.lastEditedAt ?? s.last_edited_at) as string | Date | undefined,
+    lastEditedBy: (s.lastEditedBy ?? s.last_edited_by) as string | undefined,
   };
 }
 
