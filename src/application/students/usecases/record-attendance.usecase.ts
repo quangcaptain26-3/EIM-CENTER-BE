@@ -64,7 +64,10 @@ export class RecordAttendanceUseCase {
     private readonly auditLogRepo: IAuditLogRepo,
   ) {}
 
-  async execute(dto: any, actor: { id: string; role: string; ip?: string }) {
+  async execute(
+    dto: any,
+    actor: { id: string; role: string; ip?: string; userCode?: string },
+  ) {
     const { sessionId, records } = RecordAttendanceSchema.parse(dto);
 
     const session = await this.sessionRepo.findById(sessionId);
@@ -84,27 +87,19 @@ export class RecordAttendanceUseCase {
       );
     }
 
+    if (session.status === 'completed' && (sess.submitted_at ?? sess.submittedAt)) {
+      throw new AppError(
+        ERROR_CODES.ATTENDANCE_ALREADY_SUBMITTED,
+        'Buổi học đã được điểm danh',
+        409,
+      );
+    }
+
     if (!['pending', 'completed'].includes(session.status)) {
       throw new AppError(
         ERROR_CODES.VALIDATION_ERROR,
         'Buổi học không ở trạng thái cho phép điểm danh',
         422,
-      );
-    }
-
-    if (session.status === 'completed' && actor.role === 'ADMIN') {
-      throw new AppError(
-        ERROR_CODES.ACCESS_DENIED,
-        'Giám đốc không chỉnh sửa điểm danh buổi đã hoàn tất; liên hệ học vụ.',
-        403,
-      );
-    }
-
-    if (session.status === 'completed' && actor.role === 'TEACHER') {
-      throw new AppError(
-        ERROR_CODES.ACCESS_DENIED,
-        'Giáo viên không được sửa sau khi đã hoàn tất điểm danh. Liên hệ học vụ.',
-        403,
       );
     }
 
@@ -153,8 +148,16 @@ export class RecordAttendanceUseCase {
       ?? 0;
 
     const currentAttendances = await this.attendanceRepo.findBySession(sessionId);
-    await this.sessionRepo.update(sessionId, { status: 'completed' });
+    const marked = await this.sessionRepo.markSubmittedOnce(sessionId, actor.id);
+    if (!marked) {
+      throw new AppError(
+        ERROR_CODES.ATTENDANCE_ALREADY_SUBMITTED,
+        'Buổi học đã được điểm danh',
+        409,
+      );
+    }
 
+    const detailRows = await this.attendanceRepo.findDetailRowsBySession(sessionId);
     const snapshot = (currentAttendances as unknown as AttendanceLike[]).map((r) => ({
       enrollmentId: String(r.enrollmentId ?? r.enrollment_id ?? ''),
       studentId: String(r.studentId ?? r.student_id ?? ''),
@@ -177,9 +180,19 @@ export class RecordAttendanceUseCase {
     const presentOrLate = snapshot.filter((r) => r.status === 'present' || r.status === 'late').length;
     const absent = snapshot.filter((r) => r.status === 'absent_excused' || r.status === 'absent_unexcused').length;
 
+    const detailByEnrollmentId = new Map(
+      detailRows.map((r) => [r.enrollmentId, r]),
+    );
+    const metadataRecords = snapshot.map((row) => ({
+      studentCode: detailByEnrollmentId.get(row.enrollmentId)?.studentCode ?? null,
+      status: row.status,
+      note: row.note,
+    }));
+
     await this.auditLogRepo.log({
       action: 'ATTENDANCE:recorded',
       actorId: actor.id,
+      actorCode: actor.userCode,
       actorRole: actor.role,
       actorIp: actor.ip,
       entityType: 'session',
@@ -194,6 +207,10 @@ export class RecordAttendanceUseCase {
       newValues: { snapshot },
       diff,
       description: `Điểm danh buổi ${sessionNo} lớp ${classCode}: ${presentOrLate} có mặt, ${absent} vắng (${toYmd(sessionDate) || ymdVnNow()})`,
+      metadata: {
+        records: metadataRecords,
+        submittedBy: actor.userCode ?? actor.id,
+      },
     });
 
     return { success: true, recordedCount: records.length };

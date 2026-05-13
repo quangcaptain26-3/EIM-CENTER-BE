@@ -48,8 +48,45 @@ export class GetClassAttendanceMatrixUseCase {
         sessionDate,
         status: String(r.status ?? 'pending'),
         shift: Number(r.shift ?? 1),
+        submittedAt: r.submittedAt ?? r.submitted_at ?? null,
+        submittedBy: r.submittedBy ?? r.submitted_by ?? null,
+        lastEditedAt: r.lastEditedAt ?? r.last_edited_at ?? null,
+        lastEditedBy: r.lastEditedBy ?? r.last_edited_by ?? null,
       };
     });
+
+    const submittedByIds = Array.from(
+      new Set(
+        sessionRows
+          .map((s) => s.submittedBy)
+          .filter((x): x is string => Boolean(x)),
+      ),
+    );
+    const editedByIds = Array.from(
+      new Set(
+        sessionRows
+          .map((s) => s.lastEditedBy)
+          .filter((x): x is string => Boolean(x)),
+      ),
+    );
+    const userIds = Array.from(new Set([...submittedByIds, ...editedByIds]));
+    const userMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      const userRows = await this.db.query(
+        `SELECT id, full_name FROM users WHERE id = ANY($1::uuid[])`,
+        [userIds],
+      );
+      for (const row of userRows.rows as Array<{ id: string; full_name: string }>) {
+        userMap.set(row.id, row.full_name);
+      }
+    }
+    const normalizedSessionRows = sessionRows.map((s) => ({
+      ...s,
+      submittedByName:
+        typeof s.submittedBy === 'string' ? userMap.get(s.submittedBy) ?? null : null,
+      lastEditedByName:
+        typeof s.lastEditedBy === 'string' ? userMap.get(s.lastEditedBy) ?? null : null,
+    }));
 
     const studentRows = roster.map((r) => ({
       enrollmentId: r.enrollmentId,
@@ -64,7 +101,7 @@ export class GetClassAttendanceMatrixUseCase {
         classId,
         classCode: cls.classCode,
         students: studentRows,
-        sessions: sessionRows,
+        sessions: normalizedSessionRows,
         cells,
       },
     };

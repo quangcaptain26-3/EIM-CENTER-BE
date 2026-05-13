@@ -96,7 +96,7 @@ export class CreateMakeupSessionUseCase {
         throw new AppError(
           ERROR_CODES.MAKEUP_DATE_TOO_LATE,
           'Ngày học bù phải trước buổi học cuối của khóa',
-          400,
+            422,
         );
       }
     }

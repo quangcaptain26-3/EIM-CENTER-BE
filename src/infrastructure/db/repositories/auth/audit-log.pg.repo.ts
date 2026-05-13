@@ -17,6 +17,7 @@ export class AuditLogPgRepo implements IAuditLogRepo {
     oldValues?: any;
     newValues?: any;
     diff?: any;
+    metadata?: any;
     description?: string;
   }): Promise<void> {
     try {
@@ -24,8 +25,8 @@ export class AuditLogPgRepo implements IAuditLogRepo {
         `INSERT INTO audit_logs (
           actor_id, actor_code, actor_role, actor_ip, actor_agent,
           action, entity_type, entity_id, entity_code,
-          old_values, new_values, diff, description
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          old_values, new_values, diff, metadata, description
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           data.actorId ?? null,
           data.actorCode ?? null,
@@ -39,6 +40,7 @@ export class AuditLogPgRepo implements IAuditLogRepo {
           data.oldValues ? JSON.stringify(data.oldValues) : null,
           data.newValues ? JSON.stringify(data.newValues) : null,
           data.diff ? JSON.stringify(data.diff) : null,
+          data.metadata ? JSON.stringify(data.metadata) : null,
           data.description ?? null,
         ],
       );

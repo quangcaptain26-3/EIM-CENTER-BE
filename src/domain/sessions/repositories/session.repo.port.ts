@@ -19,7 +19,13 @@ export interface ISessionRepo {
     rescheduleReason: string;
     rescheduledBy: string;
     originalDate: Date;
+    submittedBy: string;
+    submittedAt: Date;
+    lastEditedBy: string;
+    lastEditedAt: Date;
   }>): Promise<SessionEntity>;
+  /** Đánh dấu submitted lần đầu, chỉ thành công khi submitted_at còn NULL. */
+  markSubmittedOnce(sessionId: string, submittedBy: string): Promise<boolean>;
 
   /**
    * Buổi học thứ 24 của lớp gắn với enrollment (khóa học).

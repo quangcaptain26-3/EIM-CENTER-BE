@@ -12,6 +12,7 @@ export interface IAuditLogRepo {
     oldValues?: any;
     newValues?: any;
     diff?: any;
+    metadata?: any;
     description?: string;
   }): Promise<void>;
 }

@@ -44,6 +44,8 @@ export class ListTeacherSessionsUseCase {
           status: string;
           sessionDate?: Date;
           session_date?: Date | string;
+          submittedAt?: Date | string;
+          submitted_at?: Date | string;
         };
         const classId = s.classId ?? s.class_id ?? '';
         if (!classCache.has(classId)) {
@@ -68,6 +70,7 @@ export class ListTeacherSessionsUseCase {
           shiftLabel: shiftLabel(Number(s.shift)),
           roleType: 'main' as const,
           status: s.status,
+          submittedAt: s.submittedAt ?? s.submitted_at ?? null,
           coverTeacherName,
         };
       }),

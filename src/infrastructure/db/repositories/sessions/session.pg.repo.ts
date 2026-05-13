@@ -79,9 +79,22 @@ export class SessionPgRepo implements ISessionRepo {
     if (sets.length === 0) throw new Error('No data to update');
 
     values.push(id);
-    const query = `UPDATE sessions SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING *`;
+    const query = `UPDATE sessions SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`;
     const res = await this.db.query(query, values);
     return new SessionEntity(res.rows[0] as Partial<SessionEntity>);
+  }
+
+  async markSubmittedOnce(sessionId: string, submittedBy: string): Promise<boolean> {
+    const res = await this.db.query(
+      `UPDATE sessions
+       SET status = 'completed',
+           submitted_by = $1,
+           submitted_at = NOW()
+       WHERE id = $2
+         AND submitted_at IS NULL`,
+      [submittedBy, sessionId],
+    );
+    return (res.rowCount ?? 0) > 0;
   }
 
   async findLastSessionOfEnrollment(enrollmentId: string): Promise<SessionEntity | null> {

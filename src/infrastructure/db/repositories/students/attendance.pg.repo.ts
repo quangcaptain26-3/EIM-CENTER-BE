@@ -18,7 +18,7 @@ export class AttendancePgRepo implements IAttendanceRepo {
       row.status as AttendanceStatus,
       row.note ?? undefined,
       row.recorded_by ?? undefined,
-      row.created_at,
+      row.recorded_at,
       row.updated_at,
     );
   }
@@ -34,7 +34,7 @@ export class AttendancePgRepo implements IAttendanceRepo {
 
   async findBySession(sessionId: string): Promise<AttendanceEntity[]> {
     const res = await this.db.query(
-      `SELECT * FROM attendance WHERE session_id = $1 ORDER BY created_at ASC`,
+      `SELECT * FROM attendance WHERE session_id = $1 ORDER BY recorded_at ASC`,
       [sessionId],
     );
     return res.rows.map((r: any) => this.mapToEntity(r));
@@ -80,7 +80,7 @@ export class AttendancePgRepo implements IAttendanceRepo {
 
   async findByEnrollment(enrollmentId: string): Promise<AttendanceEntity[]> {
     const res = await this.db.query(
-      `SELECT * FROM attendance WHERE enrollment_id = $1 ORDER BY created_at ASC`,
+      `SELECT * FROM attendance WHERE enrollment_id = $1 ORDER BY recorded_at ASC`,
       [enrollmentId],
     );
     return res.rows.map((r: any) => this.mapToEntity(r));

@@ -37,7 +37,7 @@ export async function ensureRosterViewAccess(db: DbQuery, actor: ClassScopeActor
  */
 export async function ensureClassAttendanceScope(db: DbQuery, actor: ClassScopeActor, classId: string): Promise<void> {
   const r = String(actor.role || '').toUpperCase();
-  if (r === 'ADMIN' || r === 'ACADEMIC') return;
+  if (r === 'ADMIN' || r === 'ACADEMIC' || r === 'ACCOUNTANT') return;
   if (r === 'TEACHER') {
     if (await isActiveMainTeacherOfClass(db, classId, actor.id)) return;
     throw new AppError(ERROR_CODES.ACCESS_DENIED, 'Chỉ xem/ xuất điểm danh lớp mình phụ trách', 403);
