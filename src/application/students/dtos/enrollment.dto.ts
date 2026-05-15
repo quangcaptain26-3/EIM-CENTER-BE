@@ -1,15 +1,27 @@
 import { z } from 'zod';
+import { PgUuidStringSchema } from '../../finance/dtos/finance.dto';
 
-export const CreateEnrollmentSchema = z.object({
-  studentId: z.string().uuid('studentId phải là UUID hợp lệ'),
-  classId: z.string().uuid('classId phải là UUID hợp lệ'),
+/** Chuẩn hóa camelCase / snake_case trước khi validate UUID. */
+const createEnrollmentBodySchema = z.object({
+  studentId: PgUuidStringSchema,
+  classId: PgUuidStringSchema,
   status: z.enum(['reserved', 'pending', 'trial']).optional().default('pending'),
   reservationFee: z.number().positive().optional(),
   /** Nếu không có, dùng program.defaultFee */
   tuitionFee: z.number().nonnegative().optional(),
 });
 
-export type CreateEnrollmentDto = z.infer<typeof CreateEnrollmentSchema>;
+export const CreateEnrollmentSchema = z.preprocess((input) => {
+  if (!input || typeof input !== 'object') return input;
+  const o = input as Record<string, unknown>;
+  return {
+    ...o,
+    studentId: o.studentId ?? o.student_id,
+    classId: o.classId ?? o.class_id,
+  };
+}, createEnrollmentBodySchema);
+
+export type CreateEnrollmentDto = z.infer<typeof createEnrollmentBodySchema>;
 
 export const CompleteEnrollmentSchema = z.object({
   enrollmentId: z.string().uuid()
