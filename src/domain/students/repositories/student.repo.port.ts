@@ -20,6 +20,8 @@ export interface IStudentRepo {
     enrollmentStatus?: string;
     classId?: string;
     isActive?: boolean;
+    /** true = không có ghi danh trial/active/paused (học viên chưa có lớp đang học) */
+    withoutActiveEnrollment?: boolean;
     page: number;
     limit: number;
   }): Promise<PagedResult<StudentEntity>>;

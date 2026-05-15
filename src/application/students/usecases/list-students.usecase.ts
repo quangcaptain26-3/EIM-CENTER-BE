@@ -11,6 +11,7 @@ export class ListStudentsUseCase {
     enrollmentStatus?: string;
     classId?: string;
     isActive?: boolean;
+    withoutActiveEnrollment?: boolean;
     page: number;
     limit: number;
   }) {

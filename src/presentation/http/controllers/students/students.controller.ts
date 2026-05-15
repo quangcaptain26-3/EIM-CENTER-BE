@@ -12,7 +12,7 @@ const ENROLLMENT_STATUS_FILTER = new Set([
 ]);
 
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createStudentController(
   createStudentUsecase: any,
@@ -32,6 +32,7 @@ export function createStudentController(
           enrollmentStatus,
           classId,
           isActive,
+          withoutActiveEnrollment,
           page,
           limit,
         } = req.query;
@@ -51,6 +52,8 @@ export function createStudentController(
           enrollmentStatus: safeEnrollmentStatus,
           classId: classId as string | undefined,
           isActive: isActive !== undefined ? isActive === 'true' : undefined,
+          withoutActiveEnrollment:
+            withoutActiveEnrollment === 'true' || withoutActiveEnrollment === '1',
           page: page ? Number(page) : 1,
           limit: limit ? Number(limit) : 20,
         });

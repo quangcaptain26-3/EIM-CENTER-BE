@@ -49,6 +49,7 @@ export class StudentPgRepo implements IStudentRepo {
     enrollmentStatus?: string;
     classId?: string;
     isActive?: boolean;
+    withoutActiveEnrollment?: boolean;
     page: number;
     limit: number;
   }): Promise<PagedResult<StudentEntity>> {
@@ -104,6 +105,15 @@ export class StudentPgRepo implements IStudentRepo {
           SELECT 1 FROM enrollments e
           INNER JOIN programs p ON p.id = e.program_id
           WHERE e.student_id = s.id AND ${enrollMatch.join(' AND ')}
+        )`,
+      );
+    }
+
+    if (params.withoutActiveEnrollment) {
+      conditions.push(
+        `NOT EXISTS (
+          SELECT 1 FROM enrollments e
+          WHERE e.student_id = s.id AND e.status IN ('trial', 'active', 'paused')
         )`,
       );
     }
