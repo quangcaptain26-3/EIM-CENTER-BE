@@ -101,10 +101,14 @@ export class CreateReceiptUseCase {
     });
 
     // 7. Auto-activate nếu đủ học phí
-    if (data.amount > 0 && ['pending', 'trial'].includes(enrollment.status)) {
+    if (data.amount > 0 && ['pending', 'reserved', 'trial'].includes(enrollment.status)) {
       const allReceipts = await this.receiptRepo.findByEnrollment(data.enrollmentId);
       const totalPaid = allReceipts.reduce((sum, r) => sum + r.amount, 0);
-      if (totalPaid >= enrollment.tuitionFee) {
+      const requiredAmount =
+        enrollment.status === 'reserved'
+          ? Math.max(0, enrollment.tuitionFee - enrollment.reservationFee)
+          : enrollment.tuitionFee;
+      if (totalPaid >= requiredAmount) {
         // Delegate — use try/catch vì không muốn lỗi activate block việc tạo receipt
         try {
           await this.activateEnrollmentFn(data.enrollmentId, { id: actor.id });
