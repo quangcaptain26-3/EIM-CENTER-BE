@@ -515,6 +515,7 @@ const classController = createClassController(
   listClassSessionsUsecase,
   listClassesUsecase,
   getClassAttendanceMatrixUsecase,
+  classRepo,
 );
 const sessionController = createSessionController(
   rescheduleSessionUsecase,
@@ -737,7 +738,8 @@ router.get('/dashboard/stats', authenticate, dashboardController.stats);
 
 // Users
 const userRouter = Router();
-userRouter.get('/', authenticate, rbac('*'), userController.listUsers);
+// Danh sách user: Admin full; Kế toán cần GET này cho dropdown GV khi chốt lương (FE filter role=TEACHER).
+userRouter.get('/', authenticate, rbac('*', 'payroll:read', 'payroll:finalize'), userController.listUsers);
 userRouter.post('/', authenticate, rbac('*'), validate(CreateUserDtoSchema), userController.createUser);
 userRouter.get('/:id', authenticate, userController.getUser);
 userRouter.patch('/:id', authenticate, validate(UpdateUserDtoSchema), userController.updateUser);

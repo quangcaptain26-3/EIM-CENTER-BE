@@ -1,29 +1,47 @@
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
+import type { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
 export class CloseClassUseCase {
   constructor(
     private readonly classRepo: IClassRepo,
-    private readonly sessionRepo: any,
-    private readonly auditRepo: any
+    private readonly sessionRepo: ISessionRepo,
+    private readonly auditRepo: any,
   ) {}
 
-  async execute(userId: string, classId: string) {
+  /**
+   * Đóng lớp (`closed`).
+   * - Mặc định: chặn nếu còn buổi `pending` (tránh đóng nhầm lớp đang chạy).
+   * - `force: true` + role **ADMIN**: bỏ qua kiểm tra pending (giám đốc / vận hành cao nhất) — vẫn ghi audit kèm cờ force.
+   */
+  async execute(
+    userId: string,
+    actorRole: string,
+    classId: string,
+    options?: { force?: boolean },
+  ) {
     const targetClass = await this.classRepo.findById(classId);
     if (!targetClass) {
       throw new AppError(ERROR_CODES.CLASS_NOT_FOUND, 'Không tìm thấy lớp', 404);
     }
 
-    if (this.sessionRepo) {
-      const pendingCnt = await this.sessionRepo.getPendingSessionsCount(classId);
-      if (pendingCnt > 0) {
-        throw new AppError(
-          ERROR_CODES.VALIDATION_ERROR,
-          'Không thể đóng lớp khi còn buổi học pending',
-          422,
-        );
-      }
+    const force = options?.force === true;
+    if (force && actorRole !== 'ADMIN') {
+      throw new AppError(
+        ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
+        'Chỉ ADMIN mới được đóng lớp khi còn buổi pending (force)',
+        403,
+      );
+    }
+
+    const pendingCnt = await this.sessionRepo.getPendingSessionsCount(classId);
+    if (pendingCnt > 0 && !force) {
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Không thể đóng lớp khi còn buổi học pending',
+        422,
+      );
     }
 
     const updated = await this.classRepo.updateStatus(classId, 'closed');
@@ -32,7 +50,11 @@ export class CloseClassUseCase {
     }
 
     if (this.auditRepo) {
-      await this.auditRepo.log('CLASS:closed', { classId, updatedBy: userId });
+      await this.auditRepo.log('CLASS:closed', {
+        classId,
+        updatedBy: userId,
+        ...(force && pendingCnt > 0 ? { forceClose: true, ignoredPendingSessions: pendingCnt } : {}),
+      });
     }
 
     return true;

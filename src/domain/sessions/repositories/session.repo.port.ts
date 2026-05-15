@@ -36,6 +36,9 @@ export interface ISessionRepo {
   /** MIN(session_no) trong lớp cho buổi còn pending; null nếu không có dòng pending */
   getFirstPendingSessionNo(classId: string, executor?: SessionDbExecutor): Promise<number | null>;
 
+  /** Số buổi còn pending — đóng lớp (CloseClass) cần = 0. */
+  getPendingSessionsCount(classId: string): Promise<number>;
+
   /** Gán teacher_id mới cho mọi buổi pending từ fromSessionNo trở đi */
   updateTeacherFromSession(
     classId: string,

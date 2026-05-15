@@ -1,8 +1,10 @@
 import {
   ClassListRow,
+  CompatibleClassListRow,
   IClassRepo,
 } from '../../../../domain/classes/repositories/class.repo.port';
 import { ClassEntity } from '../../../../domain/classes/entities/class.entity';
+import { CLASS_RULES } from '../../../../config/constants';
 
 export class ClassPgRepo implements IClassRepo {
   constructor(private readonly db: any) {}
@@ -32,7 +34,9 @@ export class ClassPgRepo implements IClassRepo {
       [id],
     );
     if (!result.rows[0]) return null;
-    return new ClassEntity(result.rows[0]);
+    const row = result.rows[0] as Record<string, unknown>;
+    const entity = this.mapRowToClassEntityCore(row);
+    return this.decorateClassEntityFromJoinRow(entity, row);
   }
 
   async findByCode(code: string): Promise<ClassEntity | null> {
@@ -60,7 +64,9 @@ export class ClassPgRepo implements IClassRepo {
       [code],
     );
     if (!result.rows[0]) return null;
-    return new ClassEntity(result.rows[0]);
+    const row = result.rows[0] as Record<string, unknown>;
+    const entity = this.mapRowToClassEntityCore(row);
+    return this.decorateClassEntityFromJoinRow(entity, row);
   }
 
   async findAll(
@@ -181,6 +187,120 @@ export class ClassPgRepo implements IClassRepo {
     return { data, total };
   }
 
+  async create(data: Partial<ClassEntity>): Promise<ClassEntity> {
+    const result = await this.db.query(
+      `INSERT INTO classes (class_code, program_id, room_id, shift, schedule_days, min_capacity, max_capacity, status, start_date, announced_at, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        data.classCode, data.programId, data.roomId, data.shift, data.scheduleDays,
+        data.minCapacity, data.maxCapacity, data.status || 'pending', data.startDate, data.announcedAt ?? null, data.createdBy
+      ]
+    );
+    return this.mapRowToClassEntityCore(result.rows[0] as Record<string, unknown>);
+  }
+
+  async update(id: string, data: Partial<ClassEntity>): Promise<ClassEntity> {
+    const result = await this.db.query(
+      `UPDATE classes 
+       SET shift = COALESCE($1, shift),
+           schedule_days = COALESCE($2, schedule_days),
+           min_capacity = COALESCE($3, min_capacity),
+           max_capacity = COALESCE($4, max_capacity),
+           start_date = COALESCE($5, start_date),
+           announced_at = COALESCE($6, announced_at),
+           updated_at = NOW()
+       WHERE id = $7 RETURNING *`,
+      [data.shift, data.scheduleDays, data.minCapacity, data.maxCapacity, data.startDate, data.announcedAt, id]
+    );
+    return this.mapRowToClassEntityCore(result.rows[0] as Record<string, unknown>);
+  }
+
+  /**
+   * Map `classes` row (RETURNING * hoặc c.*) sang {@link ClassEntity} — luôn set `scheduleDays` camelCase
+   * để use case (generate-sessions, replace-teacher, …) không đọc nhầm `undefined`.
+   */
+  private mapRowToClassEntityCore(row: Record<string, unknown>): ClassEntity {
+    const sd = row.scheduleDays ?? row.schedule_days;
+    const scheduleDays = Array.isArray(sd) ? (sd as number[]) : [];
+
+    const startRaw = row.startDate ?? row.start_date;
+    let startDate: Date | undefined;
+    if (startRaw instanceof Date) {
+      startDate = startRaw;
+    } else if (typeof startRaw === 'string' && startRaw.length > 0) {
+      const d = new Date(startRaw);
+      if (!Number.isNaN(d.getTime())) startDate = d;
+    }
+
+    const announcedRaw = row.announcedAt ?? row.announced_at;
+    let announcedAt: Date | undefined;
+    if (announcedRaw instanceof Date) {
+      announcedAt = announcedRaw;
+    } else if (typeof announcedRaw === 'string' && announcedRaw.length > 0) {
+      const d = new Date(announcedRaw);
+      if (!Number.isNaN(d.getTime())) announcedAt = d;
+    }
+
+    const createdRaw = row.createdAt ?? row.created_at;
+    const createdAt =
+      createdRaw instanceof Date ? createdRaw : new Date(String(createdRaw ?? Date.now()));
+
+    const updatedRaw = row.updatedAt ?? row.updated_at;
+    const updatedAt =
+      updatedRaw instanceof Date ? updatedRaw : new Date(String(updatedRaw ?? Date.now()));
+
+    const shiftNum = Number(row.shift);
+    const shift: 1 | 2 = shiftNum === 2 ? 2 : 1;
+
+    return new ClassEntity({
+      id: String(row.id ?? ''),
+      classCode: String(row.classCode ?? row.class_code ?? ''),
+      programId: String(row.programId ?? row.program_id ?? ''),
+      roomId: String(row.roomId ?? row.room_id ?? ''),
+      shift,
+      scheduleDays,
+      minCapacity: Number(row.minCapacity ?? row.min_capacity ?? 0),
+      maxCapacity: Number(row.maxCapacity ?? row.max_capacity ?? CLASS_RULES.MAX_CAPACITY),
+      status: (row.status as ClassEntity['status']) ?? 'pending',
+      startDate,
+      createdBy:
+        row.createdBy != null || row.created_by != null
+          ? String(row.createdBy ?? row.created_by)
+          : undefined,
+      announcedAt,
+      createdAt,
+      updatedAt,
+    });
+  }
+
+  /** Gắn field join (program, phòng, GV) lên entity — GET class / findById có đủ metadata cho JSON. */
+  private decorateClassEntityFromJoinRow(entity: ClassEntity, row: Record<string, unknown>): ClassEntity {
+    type WithJoins = ClassEntity & {
+      programCode?: string;
+      programName?: string;
+      roomCode?: string;
+      mainTeacherId?: string;
+      mainTeacherName?: string;
+      enrollmentCount?: number;
+    };
+    const out = entity as WithJoins;
+    const pc = row.programCode ?? row.program_code;
+    if (pc != null && String(pc) !== '') out.programCode = String(pc);
+    const pn = row.programName ?? row.program_name;
+    if (pn != null && String(pn) !== '') out.programName = String(pn);
+    const rc = row.roomCode ?? row.room_code;
+    if (rc != null && String(rc) !== '') out.roomCode = String(rc);
+    const mtid = row.mainTeacherId ?? row.main_teacher_id;
+    if (mtid != null && String(mtid) !== '') out.mainTeacherId = String(mtid);
+    const mtn = row.mainTeacherName ?? row.main_teacher_name;
+    if (mtn != null && String(mtn).trim() !== '') out.mainTeacherName = String(mtn);
+    if (row.enrollmentCount != null || row.enrollment_count != null) {
+      out.enrollmentCount = Number(row.enrollmentCount ?? row.enrollment_count ?? 0);
+    }
+    return out as ClassEntity;
+  }
+
   private mapRowToClassList(row: Record<string, unknown>): ClassListRow {
     const sd = row.scheduleDays ?? row.schedule_days;
     const scheduleDays = Array.isArray(sd) ? (sd as number[]) : [];
@@ -204,55 +324,39 @@ export class ClassPgRepo implements IClassRepo {
     const shift: 1 | 2 = shiftNum === 2 ? 2 : 1;
 
     return {
-      id: String(row.id),
+      id: String(row.id ?? row.class_id ?? ''),
       classCode: String(row.classCode ?? row.class_code ?? ''),
       programId: String(row.programId ?? row.program_id ?? ''),
-      programCode: row.programCode != null ? String(row.programCode) : null,
-      programName: row.programName != null ? String(row.programName) : null,
+      programCode:
+        row.programCode != null || row.program_code != null
+          ? String(row.programCode ?? row.program_code)
+          : null,
+      programName:
+        row.programName != null || row.program_name != null
+          ? String(row.programName ?? row.program_name)
+          : null,
       roomId: String(row.roomId ?? row.room_id ?? ''),
-      roomCode: row.roomCode != null ? String(row.roomCode) : null,
+      roomCode:
+        row.roomCode != null || row.room_code != null ? String(row.roomCode ?? row.room_code) : null,
       shift,
       scheduleDays,
       minCapacity: Number(row.minCapacity ?? row.min_capacity ?? 0),
-      maxCapacity: Number(row.maxCapacity ?? row.max_capacity ?? 12),
+      maxCapacity: Number(row.maxCapacity ?? row.max_capacity ?? CLASS_RULES.MAX_CAPACITY),
       status: (row.status as ClassListRow['status']) ?? 'pending',
       startDate,
       announcedAt,
-      mainTeacherId: row.mainTeacherId != null ? String(row.mainTeacherId) : null,
-      mainTeacherName: row.mainTeacherName != null ? String(row.mainTeacherName) : null,
-      enrollmentCount: Number(row.enrollmentCount ?? 0),
-      completedSessions: Number(row.completedSessions ?? 0),
-      totalSessions: Number(row.totalSessions ?? 24),
+      mainTeacherId:
+        row.mainTeacherId != null || row.main_teacher_id != null
+          ? String(row.mainTeacherId ?? row.main_teacher_id)
+          : null,
+      mainTeacherName:
+        row.mainTeacherName != null || row.main_teacher_name != null
+          ? String(row.mainTeacherName ?? row.main_teacher_name)
+          : null,
+      enrollmentCount: Number(row.enrollmentCount ?? row.enrollment_count ?? 0),
+      completedSessions: Number(row.completedSessions ?? row.completed_sessions ?? 0),
+      totalSessions: Number(row.totalSessions ?? row.total_sessions ?? 24),
     };
-  }
-
-  async create(data: Partial<ClassEntity>): Promise<ClassEntity> {
-    const result = await this.db.query(
-      `INSERT INTO classes (class_code, program_id, room_id, shift, schedule_days, min_capacity, max_capacity, status, start_date, announced_at, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING *`,
-      [
-        data.classCode, data.programId, data.roomId, data.shift, data.scheduleDays,
-        data.minCapacity, data.maxCapacity, data.status || 'pending', data.startDate, data.announcedAt ?? null, data.createdBy
-      ]
-    );
-    return new ClassEntity(result.rows[0]);
-  }
-
-  async update(id: string, data: Partial<ClassEntity>): Promise<ClassEntity> {
-    const result = await this.db.query(
-      `UPDATE classes 
-       SET shift = COALESCE($1, shift),
-           schedule_days = COALESCE($2, schedule_days),
-           min_capacity = COALESCE($3, min_capacity),
-           max_capacity = COALESCE($4, max_capacity),
-           start_date = COALESCE($5, start_date),
-           announced_at = COALESCE($6, announced_at),
-           updated_at = NOW()
-       WHERE id = $7 RETURNING *`,
-      [data.shift, data.scheduleDays, data.minCapacity, data.maxCapacity, data.startDate, data.announcedAt, id]
-    );
-    return new ClassEntity(result.rows[0]);
   }
 
   async updateStatus(id: string, status: 'pending' | 'active' | 'closed'): Promise<boolean> {
@@ -320,5 +424,23 @@ export class ClassPgRepo implements IClassRepo {
       `,
     );
     return result.rows.map((row: Record<string, unknown>) => this.mapRowToClassList(row));
+  }
+
+  async findCompatibleClasses(
+    programId: string,
+    unavailableDays: number[],
+    shift: 1 | 2 | null,
+  ): Promise<CompatibleClassListRow[]> {
+    const result = await this.db.query(
+      `SELECT * FROM find_compatible_classes($1::uuid, $2::smallint[], $3::smallint)`,
+      [programId, unavailableDays, shift],
+    );
+    return result.rows.map((row: Record<string, unknown>) => {
+      const base = this.mapRowToClassList(row);
+      return {
+        ...base,
+        availableSlots: Number(row.available_slots ?? 0),
+      };
+    });
   }
 }

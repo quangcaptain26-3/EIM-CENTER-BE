@@ -137,6 +137,17 @@ export class SessionPgRepo implements ISessionRepo {
     return typeof m === 'number' ? m : parseInt(String(m), 10);
   }
 
+  async getPendingSessionsCount(classId: string): Promise<number> {
+    const res = await this.db.query(
+      `SELECT COUNT(*)::int AS c FROM sessions WHERE class_id = $1 AND status = 'pending'`,
+      [classId],
+    );
+    const row = res.rows[0] as { c?: number | string | null } | undefined;
+    const c = row?.c;
+    if (c === null || c === undefined) return 0;
+    return typeof c === 'number' ? c : parseInt(String(c), 10) || 0;
+  }
+
   async updateTeacherFromSession(
     classId: string,
     fromSessionNo: number,

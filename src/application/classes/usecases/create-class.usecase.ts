@@ -9,6 +9,7 @@
 import { IClassRepo, IClassStaffRepo, IProgramRepo, IRoomRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { ConflictCheckerService } from '../../../domain/classes/services/conflict-checker.service';
 import { CreateClassDto } from '../dtos/class.dto';
+import { CLASS_RULES } from '../../../config/constants';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
@@ -91,8 +92,8 @@ export class CreateClassUseCase {
       roomId: payload.roomId,
       shift: payload.shift,
       scheduleDays: payload.scheduleDays,
-      minCapacity: 5,
-      maxCapacity: 12, // Configurable later
+      minCapacity: CLASS_RULES.MIN_CAPACITY,
+      maxCapacity: CLASS_RULES.MAX_CAPACITY,
       status: 'pending',
       startDate: new Date(payload.startDate),
       createdBy: userId,

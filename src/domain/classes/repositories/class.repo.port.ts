@@ -25,6 +25,9 @@ export interface ClassListRow {
   totalSessions: number;
 }
 
+/** Gợi ý lớp theo ngày bận — thêm số chỗ còn lại (find_compatible_classes). */
+export type CompatibleClassListRow = ClassListRow & { availableSlots: number };
+
 export interface IClassRepo {
   findById(id: string): Promise<ClassEntity | null>;
   findByCode(code: string): Promise<ClassEntity | null>;
@@ -45,6 +48,11 @@ export interface IClassRepo {
   updateStatus(id: string, status: 'pending' | 'active' | 'closed'): Promise<boolean>;
   announce(id: string): Promise<boolean>;
   findAnnouncedUpcoming(): Promise<ClassListRow[]>;
+  findCompatibleClasses(
+    programId: string,
+    unavailableDays: number[],
+    shift: 1 | 2 | null,
+  ): Promise<CompatibleClassListRow[]>;
 }
 
 export interface IClassStaffRepo {

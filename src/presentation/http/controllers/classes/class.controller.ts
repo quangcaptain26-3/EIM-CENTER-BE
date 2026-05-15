@@ -14,6 +14,7 @@ export function createClassController(
   listClassSessionsUsecase: any,
   listClassesUsecase: any,
   getClassAttendanceMatrixUsecase: any,
+  classRepo: { findCompatibleClasses: (...args: any[]) => Promise<any[]> },
 ) {
   return {
     listClasses: async (req: Request, res: Response) => {
@@ -111,7 +112,10 @@ export function createClassController(
     closeClass: async (req: Request, res: Response) => {
       try {
         const userId = (req as any).user.id;
-        const result = await closeClassUsecase.execute(userId, req.params.id);
+        const role = (req as any).user.role;
+        const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+        const force = body.force === true;
+        const result = await closeClassUsecase.execute(userId, role, req.params.id, { force });
         res.status(200).json({ success: result });
       } catch (error: unknown) {
         sendErrorResponse(res, error);
@@ -169,6 +173,19 @@ export function createClassController(
           .map((v) => Number(v.trim()))
           .filter((v) => Number.isInteger(v) && v >= 2 && v <= 7);
         const programId = typeof req.query.programId === 'string' ? req.query.programId : undefined;
+        let shift: 1 | 2 | null = null;
+        const qs = req.query.shift;
+        if (qs === 'SHIFT_1' || qs === '1') shift = 1;
+        else if (qs === 'SHIFT_2' || qs === '2') shift = 2;
+
+        if (programId && unavailableDays.length > 0) {
+          const suggestions = await classRepo.findCompatibleClasses(programId, unavailableDays, shift);
+          return res.status(200).json({
+            data: suggestions,
+            meta: { source: 'find_compatible_classes' },
+          });
+        }
+
         const result = await listClassesUsecase.execute(
           { status: 'pending', ...(programId ? { programId } : {}) },
           100,
@@ -178,7 +195,7 @@ export function createClassController(
           const days = Array.isArray(c.scheduleDays) ? (c.scheduleDays as number[]) : [];
           return unavailableDays.length === 0 || unavailableDays.every((d) => !days.includes(d));
         });
-        res.status(200).json({ data: suggestions });
+        res.status(200).json({ data: suggestions, meta: { source: 'list_pending_filter' } });
       } catch (error: unknown) {
         sendErrorResponse(res, error);
       }
@@ -192,6 +209,23 @@ export function createClassController(
           .map((v) => Number(v.trim()))
           .filter((v) => Number.isInteger(v) && v >= 2 && v <= 7);
         const programId = typeof req.query.programId === 'string' ? req.query.programId : undefined;
+        let shift: 1 | 2 | null = null;
+        const qs = req.query.shift;
+        if (qs === 'SHIFT_1' || qs === '1') shift = 1;
+        else if (qs === 'SHIFT_2' || qs === '2') shift = 2;
+
+        if (programId && unavailableDays.length > 0) {
+          const suggestions = await classRepo.findCompatibleClasses(programId, unavailableDays, shift);
+          return res.status(200).json({
+            data: suggestions,
+            meta: {
+              source: 'schedule/conflict-check',
+              engine: 'find_compatible_classes',
+              hint: 'Hệ thống không tạo lịch riêng từng HS — dùng gợi ý lớp + chuyển lớp (≤3 buổi) / vắng có phép + bù / bảo lưu (Q16).',
+            },
+          });
+        }
+
         const result = await listClassesUsecase.execute(
           { status: 'pending', ...(programId ? { programId } : {}) },
           100,
@@ -205,6 +239,7 @@ export function createClassController(
           data: suggestions,
           meta: {
             source: 'schedule/conflict-check',
+            engine: 'list_pending_filter',
             hint: 'Hệ thống không tạo lịch riêng từng HS — dùng gợi ý lớp + chuyển lớp (≤3 buổi) / vắng có phép + bù / bảo lưu (Q16).',
           },
         });
