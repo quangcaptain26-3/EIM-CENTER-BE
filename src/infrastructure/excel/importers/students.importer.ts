@@ -6,7 +6,7 @@ export interface StudentImportRow {
   stt: number;
   fullName: string;
   dob?: Date;
-  gender?: 'Nam' | 'Nữ' | 'Khác';
+  gender?: 'male' | 'female' | 'other';
   parentName: string;
   parentPhone: string;
   parentPhone2?: string;
@@ -69,11 +69,11 @@ export class StudentsImporter extends BaseImporter<StudentImportRow> {
         }
       }
 
-      let gender: 'Nam' | 'Nữ' | 'Khác' | undefined;
+      let gender: 'male' | 'female' | 'other' | undefined;
       if (genderStr) {
-        if (['nam', 'male'].includes(genderStr)) gender = 'Nam';
-        else if (['nữ', 'nu', 'female'].includes(genderStr)) gender = 'Nữ';
-        else gender = 'Khác';
+        if (['nam', 'male'].includes(genderStr)) gender = 'male';
+        else if (['nữ', 'nu', 'female'].includes(genderStr)) gender = 'female';
+        else gender = 'other';
       }
 
       valid.push({
