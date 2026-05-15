@@ -1,17 +1,23 @@
 -- =============================================================================
--- SEED 03: rooms & holidays
+-- SEED 03: rooms & holidays — OVERVIEW v5 §8.1 (6 phòng, 2 tầng)
+-- UUID phòng giữ nguyên để không gãy FK classes / makeup_sessions.
 -- =============================================================================
 
-INSERT INTO rooms (id, room_code, capacity) VALUES
-('30000000-0000-0000-0000-000000000001', 'P.101', 15),
-('30000000-0000-0000-0000-000000000002', 'P.102', 15),
-('30000000-0000-0000-0000-000000000003', 'P.103', 15),
-('30000000-0000-0000-0000-000000000004', 'P.104', 12),
-('30000000-0000-0000-0000-000000000005', 'P.105', 12),
-('30000000-0000-0000-0000-000000000006', 'P.201', 20);
+INSERT INTO rooms (id, room_code, capacity, floor, room_type, amenities) VALUES
+('30000000-0000-0000-0000-000000000001', 'P.101', 15, 1, 'normal',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":true}'::jsonb),
+('30000000-0000-0000-0000-000000000002', 'P.102', 15, 1, 'normal',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":true}'::jsonb),
+('30000000-0000-0000-0000-000000000003', 'P.103', 15, 1, 'normal',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":false}'::jsonb),
+('30000000-0000-0000-0000-000000000004', 'P.201', 12, 2, 'normal',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":true}'::jsonb),
+('30000000-0000-0000-0000-000000000005', 'P.202', 12, 2, 'normal',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":false}'::jsonb),
+('30000000-0000-0000-0000-000000000006', 'P.203', 20, 2, 'large',
+ '{"projector":true,"ac":true,"whiteboard":true,"speakers":true}'::jsonb);
 
 -- Ngày lễ: cột holiday_date luôn ghi năm mẫu 2000 — không mang nghĩa năm; BE chỉ dùng tháng+ngày (is_recurring = true).
--- Khối Tết / Giỗ dưới là ngày dương minh họa (thực tế lịch âm lệch năm → có thể chỉnh qua import/UI).
 INSERT INTO holidays (holiday_date, name, is_recurring) VALUES
 ('2000-01-01', 'Tết Dương lịch', true),
 ('2000-02-15', 'Tết Nguyên Đán 28 Chạp', true),
