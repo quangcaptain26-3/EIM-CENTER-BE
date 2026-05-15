@@ -33,6 +33,7 @@ UNION ALL SELECT 'audit_logs', COUNT(*)::int FROM audit_logs
 UNION ALL SELECT 'audit_logs_archive', COUNT(*)::int FROM audit_logs_archive
 UNION ALL SELECT 'staff_leave_requests', COUNT(*)::int FROM staff_leave_requests
 UNION ALL SELECT 'staff_payroll_records', COUNT(*)::int FROM staff_payroll_records
+UNION ALL SELECT 'class_schedule_suggestions', COUNT(*)::int FROM class_schedule_suggestions
 UNION ALL SELECT 'system_config', COUNT(*)::int FROM system_config
 ORDER BY table_name;
 
