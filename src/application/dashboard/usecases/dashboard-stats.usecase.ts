@@ -744,11 +744,30 @@ export class DashboardStatsUseCase {
     const ca = cashAccr.rows[0] as { cash: string; accrual: string } | undefined;
 
     return {
-      topDebtors: (debtors.rows as TopDebtorRow[]).map((d) => ({
-        ...d,
+      topDebtors: (
+        debtors.rows as {
+          enrollment_id: string;
+          student_id: string;
+          student_name: string;
+          class_code: string;
+          debt: string;
+          parent_phone: string | null;
+        }[]
+      ).map((d) => ({
+        enrollmentId: d.enrollment_id,
+        studentId: d.student_id,
+        studentName: d.student_name,
+        classCode: d.class_code,
         debt: Number(d.debt) || 0,
+        parentPhone: d.parent_phone ?? null,
       })),
-      teachersPendingPayroll: teachers.rows as TeacherPayrollPendingRow[],
+      teachersPendingPayroll: (
+        teachers.rows as { id: string; full_name: string; open_sessions: number }[]
+      ).map((t) => ({
+        id: t.id,
+        fullName: t.full_name,
+        openSessions: Number(t.open_sessions) || 0,
+      })),
       revenueByProgram: (byProg.rows as { program: string; value: string }[]).map((r) => ({
         program: r.program,
         value: Number(r.value) || 0,
