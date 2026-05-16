@@ -12,6 +12,7 @@ import { IClassRepo, IProgramRepo } from '../../../domain/classes/repositories/c
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
+import { computeReservationFee, getReservationFeeRatio } from '../../../shared/utils/reservation-fee';
 
 export class CreateEnrollmentUseCase {
   constructor(
@@ -20,7 +21,8 @@ export class CreateEnrollmentUseCase {
     private readonly enrollmentHistoryRepo: IEnrollmentHistoryRepo,
     private readonly classRepo: IClassRepo,
     private readonly programRepo: IProgramRepo,
-    private readonly auditLogRepo: IAuditLogRepo
+    private readonly auditLogRepo: IAuditLogRepo,
+    private readonly db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> },
   ) {}
 
   async execute(dto: CreateEnrollmentDto, actor: { id: string; role: string; ip?: string }) {
@@ -62,21 +64,32 @@ export class CreateEnrollmentUseCase {
       throw new AppError(ERROR_CODES.PROGRAM_NOT_FOUND, 'Không tìm thấy chương trình', 404);
     }
 
-    const activeEnrollment = await this.enrollmentRepo.findActiveByStudent(studentId);
-    if (activeEnrollment) {
+    const pipelineEnrollment = await this.enrollmentRepo.findPipelineByStudent(studentId);
+    if (pipelineEnrollment) {
       throw new AppError(
         ERROR_CODES.ENROLLMENT_ALREADY_ACTIVE,
-        'Học viên đang có ghi danh đang hiệu lực',
+        'Học viên đang có ghi danh reserved, pending, trial, active hoặc paused',
         409,
       );
     }
 
-    if (status === 'reserved' && (!reservationFee || reservationFee <= 0)) {
-      throw new AppError(
-        ERROR_CODES.VALIDATION_ERROR,
-        'Ghi danh reserved bắt buộc có reservationFee > 0',
-        422,
-      );
+    const tuitionFee = tuitionFeeOverride ?? program.defaultFee;
+    const ratio = await getReservationFeeRatio(this.db);
+    const expectedReservationFee = computeReservationFee(tuitionFee, ratio);
+
+    let finalReservationFee = reservationFee ?? 0;
+    if (status === 'reserved') {
+      if (!reservationFee || reservationFee <= 0) {
+        finalReservationFee = expectedReservationFee;
+      } else if (Math.abs(reservationFee - expectedReservationFee) > 1) {
+        throw new AppError(
+          ERROR_CODES.VALIDATION_ERROR,
+          `Phí giữ chỗ phải bằng ${Math.round(ratio * 100)}% học phí (${expectedReservationFee.toLocaleString('vi-VN')}đ)`,
+          422,
+        );
+      } else {
+        finalReservationFee = reservationFee;
+      }
     }
 
     const classEnrollments = await this.enrollmentRepo.findByClass(classId);
@@ -100,8 +113,6 @@ export class CreateEnrollmentUseCase {
       );
     }
 
-    const tuitionFee = tuitionFeeOverride ?? program.defaultFee;
-
     const enrollment = await this.enrollmentRepo.create({
       studentId,
       classId,
@@ -113,7 +124,7 @@ export class CreateEnrollmentUseCase {
       classTransferCount: 0,
       pauseCount: 0,
       makeupBlocked: false,
-      reservationFee: reservationFee ?? 0,
+      reservationFee: status === 'reserved' ? finalReservationFee : 0,
       createdBy: actor.id,
       enrolledAt: new Date()
     });

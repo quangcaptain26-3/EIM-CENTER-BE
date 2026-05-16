@@ -73,6 +73,19 @@ export class EnrollmentPgRepo implements IEnrollmentRepo {
     return this.mapToEntity(result.rows[0]);
   }
 
+  async findPipelineByStudent(studentId: string): Promise<EnrollmentEntity | null> {
+    const result = await this.db.query(
+      `SELECT e.* FROM enrollments e
+       WHERE e.student_id = $1
+         AND e.status IN ('reserved', 'pending', 'trial', 'active', 'paused')
+       ORDER BY e.created_at DESC
+       LIMIT 1`,
+      [studentId],
+    );
+    if (!result.rows[0]) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
   async findByClass(classId: string): Promise<EnrollmentEntity[]> {
     const result = await this.db.query(`SELECT * FROM enrollments WHERE class_id = $1 ORDER BY created_at DESC`, [classId]);
     return result.rows.map((row: any) => this.mapToEntity(row));

@@ -22,13 +22,14 @@ export class EnrollmentTransitionRule {
 
     switch (to) {
       case 'trial':
-        if (from === 'pending') return null; // valid
-        return 'Chỉ có thể chuyển sang trial từ pending';
+        if (from === 'pending' || from === 'reserved') return null;
+        return 'Chỉ có thể chuyển sang trial từ pending hoặc reserved';
 
       case 'active':
         if (from === 'pending') return null; // valid, sau khi đóng tiền (logic đóng tiền ngoài scope này)
         if (from === 'trial') return null;   // valid
         if (from === 'paused') return null;  // valid - resume
+        if (from === 'reserved') return null; // kích hoạt sau giữ chỗ
         return `Không thể chuyển sang active từ ${from}`;
 
       case 'paused':
@@ -36,7 +37,9 @@ export class EnrollmentTransitionRule {
         return 'Chỉ có thể chuyển sang paused từ active';
 
       case 'dropped':
-        if (from === 'trial' || from === 'active') return null; // valid
+        if (from === 'trial' || from === 'active' || from === 'reserved' || from === 'pending') {
+          return null;
+        }
         return `Không thể chuyển sang dropped từ ${from}`;
 
       case 'transferred':
