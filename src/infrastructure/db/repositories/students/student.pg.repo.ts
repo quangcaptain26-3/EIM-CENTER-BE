@@ -23,6 +23,7 @@ export class StudentPgRepo implements IStudentRepo {
       row.current_level,
       row.test_result,
       row.created_by,
+      row.created_by_name != null ? String(row.created_by_name) : undefined,
       row.display_class_code != null ? String(row.display_class_code) : undefined,
       row.display_program_name != null ? String(row.display_program_name) : undefined,
       row.display_enrollment_status != null ? String(row.display_enrollment_status) : undefined,
@@ -30,7 +31,13 @@ export class StudentPgRepo implements IStudentRepo {
   }
 
   async findById(id: string): Promise<StudentEntity | null> {
-    const result = await this.db.query(`SELECT * FROM students WHERE id = $1 AND deleted_at IS NULL`, [id]);
+    const result = await this.db.query(
+      `SELECT s.*, u.full_name AS created_by_name
+       FROM students s
+       LEFT JOIN users u ON u.id = s.created_by AND u.deleted_at IS NULL
+       WHERE s.id = $1 AND s.deleted_at IS NULL`,
+      [id],
+    );
     if (!result.rows[0]) return null;
     return this.mapToEntity(result.rows[0]);
   }
