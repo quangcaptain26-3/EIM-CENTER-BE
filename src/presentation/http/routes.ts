@@ -110,6 +110,9 @@ import { ListEnrollmentsUseCase } from '../../application/students/usecases/list
 import { StartTrialUseCase } from '../../application/students/usecases/start-trial.usecase';
 import { ActivateEnrollmentUseCase } from '../../application/students/usecases/activate-enrollment.usecase';
 import { DropEnrollmentUseCase } from '../../application/students/usecases/drop-enrollment.usecase';
+import { CancelReservationUseCase } from '../../application/students/usecases/cancel-reservation.usecase';
+import { ReassignReservedClassUseCase } from '../../application/students/usecases/reassign-reserved-class.usecase';
+import { TransferReservationUseCase } from '../../application/students/usecases/transfer-reservation.usecase';
 import { CompleteEnrollmentUseCase } from '../../application/students/usecases/complete-enrollment.usecase';
 import { PauseEnrollmentUseCase } from '../../application/students/usecases/pause-enrollment.usecase';
 import { ResumeEnrollmentUseCase } from '../../application/students/usecases/resume-enrollment.usecase';
@@ -138,12 +141,15 @@ import { CreateStudentSchema, UpdateStudentSchema } from '../../application/stud
 import {
   ApprovePauseRequestBodySchema,
   CreateEnrollmentSchema,
-  DropEnrollmentSchema,
-  PauseEnrollmentSchema,
+  CancelReservationBodySchema,
+  DropEnrollmentBodySchema,
+  PauseEnrollmentBodySchema,
+  ReassignReservedClassBodySchema,
   RejectPauseRequestBodySchema,
   ResetMakeupBlockedBodySchema,
   ResumeEnrollmentSchema,
-  TransferClassSchema,
+  TransferClassBodySchema,
+  TransferReservationBodySchema,
   TransferEnrollmentSchema,
 } from '../../application/students/dtos/enrollment.dto';
 import {
@@ -336,7 +342,15 @@ const getStudentUsecase = new GetStudentUseCase(studentRepo);
 const updateStudentUsecase = new UpdateStudentUseCase(studentRepo, auditLogRepo, db);
 
 // CreateEnrollmentUseCase(studentRepo, enrollmentRepo, enrollmentHistoryRepo, classRepo, programRepo, auditLogRepo)
-const createEnrollmentUsecase = new CreateEnrollmentUseCase(studentRepo, enrollmentRepo, enrollmentHistoryRepo, classRepo, programRepo, auditLogRepo);
+const createEnrollmentUsecase = new CreateEnrollmentUseCase(
+  studentRepo,
+  enrollmentRepo,
+  enrollmentHistoryRepo,
+  classRepo,
+  programRepo,
+  auditLogRepo,
+  db,
+);
 const listEnrollmentsUsecase = new ListEnrollmentsUseCase(enrollmentRepo, pauseRequestRepo);
 const startTrialUsecase = new StartTrialUseCase(enrollmentRepo, enrollmentHistoryRepo, enrollmentTransitionRule, db);
 const activateEnrollmentUsecase = new ActivateEnrollmentUseCase(
@@ -382,6 +396,20 @@ const resumeEnrollmentUsecase = new ResumeEnrollmentUseCase(
 );
 // TransferClassUseCase(enrollmentRepo, enrollmentHistoryRepo, classRepo, auditLogRepo)
 const transferClassUsecase = new TransferClassUseCase(enrollmentRepo, enrollmentHistoryRepo, classRepo, auditLogRepo);
+const cancelReservationUsecase = new CancelReservationUseCase(
+  enrollmentRepo,
+  enrollmentHistoryRepo,
+  enrollmentTransitionRule,
+  studentRepo,
+  auditLogRepo,
+);
+const reassignReservedClassUsecase = new ReassignReservedClassUseCase(
+  enrollmentRepo,
+  enrollmentHistoryRepo,
+  classRepo,
+  auditLogRepo,
+);
+const transferReservationUsecase = new TransferReservationUseCase(db);
 // ReviewPauseRequestUseCase(enrollmentRepo, enrollmentHistoryRepo, pauseRequestRepo)
 const reviewPauseRequestUsecase = new ReviewPauseRequestUseCase(
   enrollmentRepo,
@@ -546,6 +574,9 @@ const enrollmentController = createEnrollmentController(
   upgradeProgramUsecase,
   listEnrollmentsUsecase,
   resetMakeupBlockedUsecase,
+  cancelReservationUsecase,
+  reassignReservedClassUsecase,
+  transferReservationUsecase,
 );
 const pauseRequestController = createPauseRequestController(
   reviewPauseRequestUsecase,
@@ -832,9 +863,30 @@ enrollmentRouter.post('/transfer', authenticate, rbac('*'), validate(TransferEnr
 enrollmentRouter.post('/', authenticate, rbac('enrollment:create'), validate(CreateEnrollmentSchema), enrollmentController.createEnrollment);
 enrollmentRouter.post('/:id/start-trial', authenticate, rbac('enrollment:create'), enrollmentController.startTrial);
 enrollmentRouter.post('/:id/activate', authenticate, rbac('enrollment:create'), enrollmentController.activateEnrollment);
-enrollmentRouter.post('/:id/drop', authenticate, rbac('enrollment:create'), validate(DropEnrollmentSchema), enrollmentController.dropEnrollment);
+enrollmentRouter.post('/:id/drop', authenticate, rbac('enrollment:create'), validate(DropEnrollmentBodySchema), enrollmentController.dropEnrollment);
+enrollmentRouter.post(
+  '/:id/cancel-reservation',
+  authenticate,
+  rbac('enrollment:create'),
+  validate(CancelReservationBodySchema),
+  enrollmentController.cancelReservation,
+);
+enrollmentRouter.post(
+  '/:id/reassign-reserved-class',
+  authenticate,
+  rbac('enrollment:create'),
+  validate(ReassignReservedClassBodySchema),
+  enrollmentController.reassignReservedClass,
+);
+enrollmentRouter.post(
+  '/:id/transfer-reservation',
+  authenticate,
+  rbac('enrollment:create'),
+  validate(TransferReservationBodySchema),
+  enrollmentController.transferReservation,
+);
 enrollmentRouter.post('/:id/complete', authenticate, rbac('enrollment:create'), enrollmentController.completeEnrollment);
-enrollmentRouter.post('/:id/pause', authenticate, rbac('pause_request:create'), validate(PauseEnrollmentSchema), enrollmentController.pauseEnrollment);
+enrollmentRouter.post('/:id/pause', authenticate, rbac('pause_request:create'), validate(PauseEnrollmentBodySchema), enrollmentController.pauseEnrollment);
 enrollmentRouter.post(
   '/:id/resume',
   authenticate,
@@ -842,7 +894,7 @@ enrollmentRouter.post(
   validate(ResumeEnrollmentSchema),
   enrollmentController.resumeEnrollment,
 );
-enrollmentRouter.post('/:id/transfer-class', authenticate, rbac('enrollment:transfer_class'), validate(TransferClassSchema), enrollmentController.transferClass);
+enrollmentRouter.post('/:id/transfer-class', authenticate, rbac('enrollment:transfer_class'), validate(TransferClassBodySchema), enrollmentController.transferClass);
 enrollmentRouter.post('/:id/upgrade-program', authenticate, rbac('*'), enrollmentController.upgradeProgram);
 enrollmentRouter.post(
   '/:id/reset-makeup-blocked',

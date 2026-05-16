@@ -14,6 +14,9 @@ export function createEnrollmentController(
   upgradeProgramUsecase: any,
   listEnrollmentsUsecase: any,
   resetMakeupBlockedUsecase: any,
+  cancelReservationUsecase: any,
+  reassignReservedClassUsecase: any,
+  transferReservationUsecase: any,
 ) {
   /** Helper: build actor from request */
   const actor = (req: Request) => ({
@@ -94,7 +97,7 @@ export function createEnrollmentController(
     pauseEnrollment: async (req: Request, res: Response) => {
       try {
         const result = await pauseEnrollmentUsecase.execute(
-          { enrollmentId: req.params.id, ...req.body },
+          { reason: req.body.reason, enrollmentId: req.params.id },
           actor(req),
         );
         if ((result as { requiresApproval: boolean }).requiresApproval) {
@@ -156,6 +159,45 @@ export function createEnrollmentController(
     resetMakeupBlocked: async (req: Request, res: Response) => {
       try {
         const result = await resetMakeupBlockedUsecase.execute(req.params.id, req.body, actor(req));
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** POST /enrollments/:id/cancel-reservation — Q39 */
+    cancelReservation: async (req: Request, res: Response) => {
+      try {
+        const result = await cancelReservationUsecase.execute(
+          { enrollmentId: req.params.id, ...req.body },
+          actor(req),
+        );
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** POST /enrollments/:id/reassign-reserved-class — Q37 */
+    reassignReservedClass: async (req: Request, res: Response) => {
+      try {
+        const result = await reassignReservedClassUsecase.execute(
+          { enrollmentId: req.params.id, ...req.body },
+          actor(req),
+        );
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** POST /enrollments/:id/transfer-reservation — Q38 */
+    transferReservation: async (req: Request, res: Response) => {
+      try {
+        const result = await transferReservationUsecase.execute(
+          { enrollmentId: req.params.id, ...req.body },
+          actor(req),
+        );
         res.status(200).json(result);
       } catch (error: unknown) {
         sendErrorResponse(res, error);

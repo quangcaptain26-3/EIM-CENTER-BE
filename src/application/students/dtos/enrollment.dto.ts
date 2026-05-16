@@ -27,21 +27,39 @@ export const CompleteEnrollmentSchema = z.object({
   enrollmentId: z.string().uuid()
 });
 
-export const DropEnrollmentSchema = z.object({
-  enrollmentId: z.string().uuid(),
+export const DropEnrollmentBodySchema = z.object({
   reasonType: z.string().min(1, 'Vui lòng chọn loại lý do'),
-  reasonDetail: z.string().min(1, 'Vui lòng nhập chi tiết lý do')
+  reasonDetail: z.string().min(1, 'Vui lòng nhập chi tiết lý do'),
 });
 
-export const TransferClassSchema = z.object({
+export const DropEnrollmentSchema = DropEnrollmentBodySchema.extend({
   enrollmentId: z.string().uuid(),
-  newClassId: z.string().uuid()
 });
 
-export const PauseEnrollmentSchema = z.object({
+export const TransferClassBodySchema = z.object({
+  newClassId: z.string().uuid(),
+});
+
+export const TransferClassSchema = TransferClassBodySchema.extend({
   enrollmentId: z.string().uuid(),
+});
+
+export const PauseEnrollmentBodySchema = z.object({
   reason: z.string().min(20, 'Lý do bảo lưu cần ít nhất 20 ký tự'),
 });
+
+const pauseEnrollmentDtoSchema = PauseEnrollmentBodySchema.extend({
+  enrollmentId: PgUuidStringSchema,
+});
+
+export const PauseEnrollmentSchema = z.preprocess((input) => {
+  if (!input || typeof input !== 'object') return input;
+  const o = input as Record<string, unknown>;
+  return {
+    ...o,
+    enrollmentId: o.enrollmentId ?? o.enrollment_id ?? o.id,
+  };
+}, pauseEnrollmentDtoSchema);
 
 export const ReviewPauseRequestSchema = z.object({
   requestId: z.string().uuid(),
@@ -68,6 +86,31 @@ export type TransferEnrollmentDto = z.infer<typeof TransferEnrollmentSchema>;
 /** Q15: body POST /enrollments/:id/reset-makeup-blocked (enrollmentId lấy từ URL) */
 export const ResetMakeupBlockedBodySchema = z.object({
   reason: z.string().min(10, 'Lý do mở khóa cần ít nhất 10 ký tự'),
+});
+
+export const CancelReservationBodySchema = z.object({
+  reasonDetail: z.string().min(1, 'Vui lòng nhập lý do hủy giữ chỗ'),
+});
+
+export const CancelReservationSchema = CancelReservationBodySchema.extend({
+  enrollmentId: z.string().uuid(),
+});
+
+export const ReassignReservedClassBodySchema = z.object({
+  newClassId: z.string().uuid(),
+});
+
+export const ReassignReservedClassSchema = ReassignReservedClassBodySchema.extend({
+  enrollmentId: z.string().uuid(),
+});
+
+export const TransferReservationBodySchema = z.object({
+  newClassId: z.string().uuid(),
+  reasonDetail: z.string().min(1, 'Vui lòng nhập lý do chuyển giữ chỗ'),
+});
+
+export const TransferReservationSchema = TransferReservationBodySchema.extend({
+  enrollmentId: z.string().uuid(),
 });
 
 export const ResumeEnrollmentSchema = z
