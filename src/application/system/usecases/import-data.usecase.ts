@@ -183,6 +183,7 @@ export class ImportDataUseCase {
           new ClassPgRepo(client),
           new ProgramPgRepo(client),
           new AuditLogPgRepo(client),
+          client,
         );
         await uc.execute(
           {

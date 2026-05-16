@@ -50,6 +50,7 @@ export class DropEnrollmentUseCase {
       'subjective_financial',
       'subjective_relocation',
       'subjective_other',
+      'subjective_class_transfer',
       'special_case',
     ]);
     if (!allowedReasons.has(normalizedReasonType)) {
