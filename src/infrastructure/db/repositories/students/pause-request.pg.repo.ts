@@ -15,7 +15,7 @@ export class PauseRequestPgRepo implements IPauseRequestRepo {
       reviewedBy: row.reviewed_by,
       reviewNote: row.review_note,
       createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      reviewedAt: row.reviewed_at,
     };
   }
 
@@ -104,7 +104,7 @@ export class PauseRequestPgRepo implements IPauseRequestRepo {
   }
 
   async updateStatus(id: string, status: 'approved' | 'rejected', reviewData?: { reviewedBy?: string; reviewNote?: string }): Promise<PauseRequestEntity> {
-    const sets = [`status = $1`, `updated_at = NOW()`];
+    const sets = [`status = $1`, `reviewed_at = NOW()`];
     const vals: any[] = [status];
     let i = 2;
 

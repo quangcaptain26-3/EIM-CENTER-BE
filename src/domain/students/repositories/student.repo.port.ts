@@ -58,6 +58,8 @@ export interface IEnrollmentRepo {
   /** JOIN programs + classes — hiển thị phiếu thu / danh sách HV */
   findByStudentWithProgramClass(studentId: string): Promise<EnrollmentWithProgramClass[]>;
   findActiveByStudent(studentId: string): Promise<EnrollmentEntity | null>;
+  /** Ghi danh đang trong pipeline: reserved, pending, trial, active, paused */
+  findPipelineByStudent(studentId: string): Promise<EnrollmentEntity | null>;
   findByClass(classId: string): Promise<EnrollmentEntity[]>;
   findRosterByClass(classId: string): Promise<ClassRosterRow[]>;
   create(data: Partial<EnrollmentEntity>): Promise<EnrollmentEntity>;
@@ -96,7 +98,7 @@ export interface PauseRequestEntity {
   reviewedBy?: string;
   reviewNote?: string;
   createdAt: Date;
-  updatedAt?: Date;
+  reviewedAt?: Date;
 }
 
 export interface IPauseRequestRepo {
