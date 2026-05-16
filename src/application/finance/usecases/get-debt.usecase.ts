@@ -5,12 +5,17 @@
  * - `totalPaid` = sum phiếu dương; `totalRefunded` = tổng trị tuyệt đối phiếu âm; `debt = tuition_fee - totalPaid + totalRefunded` (số âm = dư tiền — Q24).
  */
 import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';
-import { IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
+import { IEnrollmentRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
+import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
 export interface DebtSummary {
   enrollmentId: string;
+  studentId: string;
+  studentName: string | null;
+  classCode: string | null;
+  enrollmentStatus: string;
   tuitionFee: number;
   totalPaid: number;
   totalRefunded: number;
@@ -23,6 +28,8 @@ export class GetDebtUseCase {
   constructor(
     private readonly receiptRepo: IReceiptRepo,
     private readonly enrollmentRepo: IEnrollmentRepo,
+    private readonly studentRepo: IStudentRepo,
+    private readonly classRepo: IClassRepo,
   ) {}
 
   async execute(enrollmentId: string): Promise<DebtSummary> {
@@ -47,9 +54,18 @@ export class GetDebtUseCase {
 
     const debt = enrollment.tuitionFee - totalPaid + totalRefunded;
 
+    const [student, cls] = await Promise.all([
+      this.studentRepo.findById(enrollment.studentId),
+      this.classRepo.findById(enrollment.classId),
+    ]);
+
     return {
       enrollmentId,
-      tuitionFee:    enrollment.tuitionFee,
+      studentId: enrollment.studentId,
+      studentName: student?.fullName ?? null,
+      classCode: cls?.classCode ?? null,
+      enrollmentStatus: enrollment.status,
+      tuitionFee: enrollment.tuitionFee,
       totalPaid,
       totalRefunded,
       debt,
