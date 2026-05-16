@@ -69,6 +69,7 @@ import { ListUpcomingClassesUseCase } from '../../application/classes/usecases/l
 import { GetRosterUseCase } from '../../application/classes/usecases/get-roster.usecase';
 import { ListRoomsUseCase } from '../../application/classes/usecases/list-rooms.usecase';
 import { ListProgramsUseCase } from '../../application/classes/usecases/list-programs.usecase';
+import { UpdateProgramDefaultFeeUseCase } from '../../application/classes/usecases/update-program-default-fee.usecase';
 import { GenerateSessionsUseCase } from '../../application/sessions/usecases/generate-sessions.usecase';
 import { RescheduleSessionUseCase } from '../../application/sessions/usecases/reschedule-session.usecase';
 import { AssignCoverUseCase } from '../../application/sessions/usecases/assign-cover.usecase';
@@ -81,6 +82,7 @@ import { FindAvailableCoversUseCase } from '../../application/sessions/usecases/
 
 // ─── Classes / Sessions DTOs ──────────────────────────────────────────────────
 import { CreateClassDto, UpdateClassDto, RescheduleDto, AssignCoverDto } from '../../application/classes/dtos/class.dto';
+import { UpdateProgramDefaultFeeDto } from '../../application/classes/dtos/program.dto';
 
 // ─── Classes / Sessions Controllers ───────────────────────────────────────────
 import { createClassController } from './controllers/classes/class.controller';
@@ -291,6 +293,7 @@ const announceClassUsecase = new AnnounceClassUseCase(classRepo);
 const listUpcomingClassesUsecase = new ListUpcomingClassesUseCase(classRepo);
 const listRoomsUsecase = new ListRoomsUseCase(roomRepo);
 const listProgramsUsecase = new ListProgramsUseCase(programRepo);
+const updateProgramDefaultFeeUsecase = new UpdateProgramDefaultFeeUseCase(programRepo, auditLogRepo);
 const generateSessionsUsecase = new GenerateSessionsUseCase(classRepo, classStaffRepo, classSessionRepo, holidayRepo, programRepo, auditLogRepo, sessionGeneratorService, db);
 const rescheduleSessionUsecase = new RescheduleSessionUseCase(classSessionRepo, classRepo, conflictCheckerService, holidayRepo, auditLogRepo);
 const assignCoverUsecase = new AssignCoverUseCase(
@@ -561,7 +564,7 @@ const sessionController = createSessionController(
   classRepo,
 );
 const roomController = createRoomController(listRoomsUsecase);
-const programController = createProgramController(listProgramsUsecase);
+const programController = createProgramController(listProgramsUsecase, updateProgramDefaultFeeUsecase);
 
 const studentController = createStudentController(createStudentUsecase, listStudentsUsecase, getStudentUsecase, updateStudentUsecase);
 const enrollmentController = createEnrollmentController(
@@ -856,6 +859,13 @@ roomRouter.get('/', authenticate, roomController.listRooms);
 
 const programRouter = Router();
 programRouter.get('/', authenticate, programController.listPrograms);
+programRouter.patch(
+  '/:programId',
+  authenticate,
+  rbac('program:update_default_fee'),
+  validate(UpdateProgramDefaultFeeDto),
+  programController.updateDefaultFee,
+);
 
 // Students (enrollment history nested)
 const studentRouter = Router();

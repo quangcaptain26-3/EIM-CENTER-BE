@@ -6,7 +6,7 @@
  */
 export class RbacService {
   private static readonly PERMISSIONS: Record<string, string[]> = {
-    ADMIN: ['*'],
+    ADMIN: ['*', 'program:update_default_fee'],
 
     ACADEMIC: [
       'class:read',

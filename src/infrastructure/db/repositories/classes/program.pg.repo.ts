@@ -57,4 +57,13 @@ export class ProgramPgRepo implements IProgramRepo {
     if (!result.rows[0]) return null;
     return this.mapRowToEntity(result.rows[0] as Record<string, unknown>);
   }
+
+  async updateDefaultFee(id: string, defaultFee: number): Promise<ProgramEntity | null> {
+    const result = await this.db.query(
+      `UPDATE programs SET default_fee = $2 WHERE id = $1 RETURNING *`,
+      [id, defaultFee],
+    );
+    if (!result.rows[0]) return null;
+    return this.mapRowToEntity(result.rows[0] as Record<string, unknown>);
+  }
 }

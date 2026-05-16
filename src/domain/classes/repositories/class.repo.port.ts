@@ -73,4 +73,5 @@ export interface IProgramRepo {
   findByCode(code: string): Promise<ProgramEntity | null>;
   findAll(): Promise<ProgramEntity[]>;
   findByLevelOrder(level: number): Promise<ProgramEntity | null>;
+  updateDefaultFee(id: string, defaultFee: number): Promise<ProgramEntity | null>;
 }
