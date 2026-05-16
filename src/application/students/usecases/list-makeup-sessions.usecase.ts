@@ -5,14 +5,9 @@ export class ListMakeupSessionsUseCase {
   constructor(private readonly makeupSessionRepo: IMakeupSessionRepo) {}
 
   async execute(filter: { status?: string; enrollmentId?: string }) {
-    if (filter.enrollmentId) {
-      const all = await this.makeupSessionRepo.findByEnrollment(filter.enrollmentId);
-      if (filter.status) {
-        return all.filter((m) => m.status === (filter.status as MakeupSessionStatus));
-      }
-      return all;
-    }
-    // No enrollmentId — not supported by base repo; return empty (caller should filter)
-    return [];
+    return this.makeupSessionRepo.findMany({
+      enrollmentId: filter.enrollmentId,
+      status: filter.status as MakeupSessionStatus | undefined,
+    });
   }
 }

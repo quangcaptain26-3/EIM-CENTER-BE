@@ -52,11 +52,47 @@ export interface IAttendanceRepo {
   }): Promise<AttendanceEntity>;
 }
 
+export interface CreateMakeupSessionRecord {
+  makeupCode: string;
+  /** FK attendance.id → cột DB `original_attendance_id` */
+  attendanceId: string;
+  originalSessionId: string;
+  studentId: string;
+  enrollmentId: string;
+  makeupDate: Date;
+  shift: 1 | 2;
+  roomId: string;
+  teacherId: string;
+  createdBy: string;
+  note?: string;
+  status?: MakeupSessionStatus;
+}
+
+/** Hàng danh sách học bù — JOIN buổi gốc, phòng, GV (FE tab Học bù / trang danh sách). */
+export interface MakeupSessionListItem {
+  id: string;
+  code: string;
+  makeupCode: string;
+  enrollmentId: string;
+  studentId: string;
+  studentName: string | null;
+  studentCode: string | null;
+  originalSessionNo: number | null;
+  originalDate: string | null;
+  scheduledDate: string;
+  status: MakeupSessionStatus;
+  roomId: string;
+  roomName: string | null;
+  teacherId: string;
+  teacherName: string | null;
+  shift: 1 | 2;
+}
+
 export interface IMakeupSessionRepo {
   findById(id: string): Promise<MakeupSessionEntity | null>;
-  findByEnrollment(enrollmentId: string): Promise<MakeupSessionEntity[]>;
+  findMany(filter?: { enrollmentId?: string; status?: MakeupSessionStatus }): Promise<MakeupSessionListItem[]>;
   findByAttendance(attendanceId: string): Promise<MakeupSessionEntity | null>;
-  create(data: Partial<MakeupSessionEntity>): Promise<MakeupSessionEntity>;
+  create(data: CreateMakeupSessionRecord): Promise<MakeupSessionEntity>;
   updateStatus(id: string, status: MakeupSessionStatus): Promise<void>;
 }
 

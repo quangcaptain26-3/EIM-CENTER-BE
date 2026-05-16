@@ -36,7 +36,8 @@ export const CreateMakeupSessionSchema = z.object({
   shift: z.union([z.literal(1), z.literal(2), z.literal('1'), z.literal('2')])
     .transform((val) => Number(val) as 1 | 2),
   roomId: IdSchema,
-  teacherId: IdSchema
+  teacherId: IdSchema,
+  note: z.string().trim().optional(),
 });
 
 export const CompleteMakeupSessionSchema = z.object({

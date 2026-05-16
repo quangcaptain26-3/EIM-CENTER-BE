@@ -138,12 +138,16 @@ export class CreateMakeupSessionUseCase {
     const makeupSession = await this.makeupSessionRepo.create({
       makeupCode,
       attendanceId: attendance.id,
+      originalSessionId: attendance.sessionId,
+      studentId: attendance.studentId,
       enrollmentId: enrollment.id,
       makeupDate,
       shift: data.shift,
       roomId: data.roomId,
       teacherId: data.teacherId,
-      status: 'pending'
+      createdBy: actor.id,
+      note: data.note,
+      status: 'pending',
     });
 
     await this.auditLogRepo.log({
