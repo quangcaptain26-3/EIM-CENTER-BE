@@ -101,12 +101,14 @@ export class SessionCoverPgRepo implements ISessionCoverRepo {
         s.shift,
         s.status,
         c.class_code,
+        rm.room_code,
         sc.cover_teacher_id,
         sc.status AS cover_status,
         sc.reason AS cover_reason
       FROM session_covers sc
       INNER JOIN sessions s ON s.id = sc.session_id
       INNER JOIN classes c ON c.id = s.class_id
+      LEFT JOIN rooms rm ON rm.id = c.room_id
       WHERE sc.cover_teacher_id = $1
         AND sc.status <> 'cancelled'
         AND EXTRACT(MONTH FROM s.session_date::date) = $2::int

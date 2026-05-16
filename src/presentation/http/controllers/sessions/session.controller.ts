@@ -56,6 +56,7 @@ export function createSessionController(
   assignCoverUsecase: any,
   cancelCoverUsecase: any,
   listTeacherSessionsUsecase: any,
+  listCenterSessionsUsecase: any,
   findAvailableCoversUsecase: any,
   sessionRepo: any,
   sessionCoverRepo: any,
@@ -176,6 +177,25 @@ export function createSessionController(
         const teacherId = (req as any).user.id;
         const { month, year } = parseTeacherSessionsMonthYear(req.query.month, req.query.year);
         const result = await listTeacherSessionsUsecase.execute(teacherId, month, year);
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** GET /sessions/calendar — lịch buổi học toàn trung tâm (ADMIN / Học vụ) */
+    listCenterSessions: async (req: Request, res: Response) => {
+      try {
+        const { month, year } = parseTeacherSessionsMonthYear(req.query.month, req.query.year);
+        const teacherId =
+          typeof req.query.teacherId === 'string' && req.query.teacherId.trim()
+            ? req.query.teacherId.trim()
+            : undefined;
+        const classId =
+          typeof req.query.classId === 'string' && req.query.classId.trim()
+            ? req.query.classId.trim()
+            : undefined;
+        const result = await listCenterSessionsUsecase.execute({ month, year, teacherId, classId });
         res.status(200).json(result);
       } catch (error: unknown) {
         sendErrorResponse(res, error);

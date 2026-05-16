@@ -32,7 +32,7 @@ export class ListTeacherSessionsUseCase {
     const mainSessions = await this.sessionRepo.findByTeacher(teacherId, month, year);
     const coverRows = await this.sessionCoverRepo.findCoversByTeacher(teacherId, month, year);
 
-    const classCache = new Map<string, string | undefined>();
+    const classCache = new Map<string, { classCode?: string; roomCode?: string | null }>();
 
     const mainMapped = await Promise.all(
       mainSessions.map(async (raw) => {
@@ -50,8 +50,12 @@ export class ListTeacherSessionsUseCase {
         const classId = s.classId ?? s.class_id ?? '';
         if (!classCache.has(classId)) {
           const cls = await this.classRepo.findById(classId);
-          classCache.set(classId, cls?.classCode);
+          classCache.set(classId, {
+            classCode: cls?.classCode,
+            roomCode: cls?.roomCode ?? null,
+          });
         }
+        const classMeta = classCache.get(classId);
         const scheduledDate = sessionDateIso(s);
         let coverTeacherName: string | undefined;
         const cover = await this.sessionCoverRepo.findBySession(s.id);
@@ -66,7 +70,8 @@ export class ListTeacherSessionsUseCase {
           id: s.id,
           scheduledDate,
           classId,
-          classCode: classCache.get(classId),
+          classCode: classMeta?.classCode,
+          roomCode: classMeta?.roomCode ?? undefined,
           shiftLabel: shiftLabel(Number(s.shift)),
           roleType: 'main' as const,
           status: s.status,
@@ -85,6 +90,7 @@ export class ListTeacherSessionsUseCase {
         scheduledDate,
         classId: row.class_id as string,
         classCode: row.class_code as string | undefined,
+        roomCode: row.room_code != null ? String(row.room_code) : undefined,
         shiftLabel: shiftLabel(Number(row.shift)),
         roleType: 'cover' as const,
         status: row.status as string,

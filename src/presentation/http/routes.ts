@@ -76,6 +76,7 @@ import { CancelCoverUseCase } from '../../application/sessions/usecases/cancel-c
 import { ListClassSessionsUseCase } from '../../application/sessions/usecases/list-class-sessions.usecase';
 import { GetClassAttendanceMatrixUseCase } from '../../application/classes/usecases/get-class-attendance-matrix.usecase';
 import { ListTeacherSessionsUseCase } from '../../application/sessions/usecases/list-teacher-sessions.usecase';
+import { ListCenterSessionsUseCase } from '../../application/sessions/usecases/list-center-sessions.usecase';
 import { FindAvailableCoversUseCase } from '../../application/sessions/usecases/find-available-covers.usecase';
 
 // ─── Classes / Sessions DTOs ──────────────────────────────────────────────────
@@ -307,6 +308,7 @@ const listClassSessionsUsecase = new ListClassSessionsUseCase(
   classRepo,
   db,
 );
+const listCenterSessionsUsecase = new ListCenterSessionsUseCase(db);
 const listTeacherSessionsUsecase = new ListTeacherSessionsUseCase(
   classSessionRepo,
   sessionCoverRepo,
@@ -495,7 +497,7 @@ const createRefundRequestUsecase = new CreateRefundRequestUseCase(
 
 // ─── Finance use cases ────────────────────────────────────────────────────────
 // createReceiptUsecase declared after activateEnrollmentUsecase to wire the callback
-const getDebtUsecase            = new GetDebtUseCase(receiptRepo, enrollmentRepo);
+const getDebtUsecase            = new GetDebtUseCase(receiptRepo, enrollmentRepo, studentRepo, classRepo);
 const listReceiptsUsecase       = new ListReceiptsUseCase(receiptRepo);
 const listPaymentStatusUsecase  = new ListPaymentStatusUseCase(db);
 const financeDashboardUsecase   = new FinanceDashboardUseCase(db);
@@ -550,6 +552,7 @@ const sessionController = createSessionController(
   assignCoverUsecase,
   cancelCoverUsecase,
   listTeacherSessionsUsecase,
+  listCenterSessionsUsecase,
   findAvailableCoversUsecase,
   classSessionRepo,
   sessionCoverRepo,
@@ -769,8 +772,8 @@ router.get('/dashboard/stats', authenticate, dashboardController.stats);
 
 // Users
 const userRouter = Router();
-// Danh sách user: Admin full; Kế toán cần GET này cho dropdown GV khi chốt lương (FE filter role=TEACHER).
-userRouter.get('/', authenticate, rbac('*', 'payroll:read', 'payroll:finalize'), userController.listUsers);
+// Danh sách user: Admin full; Kế toán (chốt lương); Học vụ (dropdown GV khi tạo học bù).
+userRouter.get('/', authenticate, rbac('*', 'payroll:read', 'payroll:finalize', 'makeup:create'), userController.listUsers);
 userRouter.post('/', authenticate, rbac('*'), validate(CreateUserDtoSchema), userController.createUser);
 userRouter.get('/:id', authenticate, userController.getUser);
 userRouter.patch('/:id', authenticate, validate(UpdateUserDtoSchema), userController.updateUser);
@@ -801,6 +804,12 @@ classRouter.get(
 
 // Sessions (attendance nested here)
 const sessionRouter = Router();
+sessionRouter.get(
+  '/calendar',
+  authenticate,
+  rbac('class:read', '*'),
+  sessionController.listCenterSessions,
+);
 sessionRouter.get(
   '/:id',
   authenticate,
