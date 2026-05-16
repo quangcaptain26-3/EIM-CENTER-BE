@@ -3,8 +3,8 @@
  *
  * Cách vận hành:
  * - Chỉ ADMIN; từ chối bắt buộc `review_note`.
- * - Duyệt: tạo phiếu thu **âm** (`amount = -refundAmount`, `amount_in_words` BE) gắn enrollment; nếu enrollment chưa dropped thì chuyển `dropped` + history; audit `FINANCE:refund_approved`.
- * - Từ chối: chỉ audit `FINANCE:refund_rejected` — không tạo phiếu (immutable: mọi điều chỉnh sau dùng phiếu mới).
+ * - Duyệt: tạo phiếu thu **âm** gắn enrollment; enrollment → dropped nếu cần; **cuối cùng** mới đổi status request (tránh DB approved mà UI/API lỗi giữa chừng).
+ * - Từ chối: chỉ audit + đổi status.
  */
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
@@ -23,7 +23,7 @@ export class ReviewRefundRequestUseCase {
     private readonly enrollmentHistoryRepo: IEnrollmentHistoryRepo,
     private readonly studentRepo: IStudentRepo,
     private readonly receiptRepo: IReceiptRepo,
-    private readonly auditLogRepo: IAuditLogRepo
+    private readonly auditLogRepo: IAuditLogRepo,
   ) {}
 
   async execute(
@@ -53,15 +53,21 @@ export class ReviewRefundRequestUseCase {
     }
 
     if (request.status !== 'pending') {
-      throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Yêu cầu đã được xử lý', 409);
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Yêu cầu đã được xử lý. Vui lòng tải lại danh sách.',
+        409,
+      );
     }
 
-    await this.refundRequestRepo.updateStatus(requestId, status, {
-      reviewedBy: actor.id,
-      reviewNote
-    });
+    let receiptId: string | undefined;
 
     if (status === 'approved') {
+      const refundAmount = Number(request.refundAmount ?? 0);
+      if (refundAmount <= 0) {
+        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Số tiền hoàn phí không hợp lệ', 422);
+      }
+
       const enrollment = await this.enrollmentRepo.findById(request.enrollmentId);
       if (!enrollment) {
         throw new AppError(ERROR_CODES.ENROLLMENT_NOT_FOUND, 'Không tìm thấy ghi danh để hoàn phí', 404);
@@ -69,11 +75,6 @@ export class ReviewRefundRequestUseCase {
       const student = await this.studentRepo.findById(enrollment.studentId);
       if (!student) {
         throw new AppError(ERROR_CODES.STUDENT_NOT_FOUND, 'Không tìm thấy học viên để hoàn phí', 404);
-      }
-
-      const refundAmount = Number(request.refundAmount ?? 0);
-      if (refundAmount <= 0) {
-        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Số tiền hoàn phí không hợp lệ', 422);
       }
 
       const refundReceipt = await this.receiptRepo.create({
@@ -91,8 +92,9 @@ export class ReviewRefundRequestUseCase {
         createdBy: actor.id,
         payerSignatureName: student.parentName || student.fullName,
       });
+      receiptId = refundReceipt.id;
 
-      if (enrollment && enrollment.status !== 'dropped') {
+      if (enrollment.status !== 'dropped') {
         const fromStatus = enrollment.status;
         await this.enrollmentRepo.updateStatus(enrollment.id, 'dropped');
 
@@ -134,6 +136,12 @@ export class ReviewRefundRequestUseCase {
         description: `Từ chối yêu cầu hoàn phí ${request.requestCode}`,
       });
     }
+
+    await this.refundRequestRepo.updateStatus(requestId, status, {
+      reviewedBy: actor.id,
+      reviewNote,
+      receiptId,
+    });
 
     return { success: true };
   }

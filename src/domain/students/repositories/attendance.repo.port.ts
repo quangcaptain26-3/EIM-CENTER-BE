@@ -65,5 +65,9 @@ export interface IRefundRequestRepo {
   findByEnrollment(enrollmentId: string): Promise<RefundRequestEntity[]>;
   findAll(filter?: { status?: RefundRequestStatus; reasonType?: string }, paginate?: { page: number; limit: number }): Promise<{ data: RefundRequestEntity[], total: number }>;
   create(data: Partial<RefundRequestEntity>): Promise<RefundRequestEntity>;
-  updateStatus(id: string, status: RefundRequestStatus, reviewData?: { reviewedBy?: string; reviewNote?: string }): Promise<void>;
+  updateStatus(
+    id: string,
+    status: RefundRequestStatus,
+    reviewData?: { reviewedBy?: string; reviewNote?: string; receiptId?: string },
+  ): Promise<void>;
 }

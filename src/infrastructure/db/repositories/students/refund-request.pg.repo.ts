@@ -16,7 +16,7 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
       row.reviewed_by ?? undefined,
       row.review_note ?? undefined,
       row.created_at,
-      row.updated_at,
+      row.reviewed_at,
     );
   }
 
@@ -46,19 +46,22 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
     let idx = 1;
 
     if (filter?.status) {
-      conditions.push(`status = $${idx++}`);
+      conditions.push(`rr.status = $${idx++}`);
       params.push(filter.status);
     }
     if (filter?.reasonType) {
-      conditions.push(`reason_type = $${idx++}`);
+      conditions.push(`rr.reason_type = $${idx++}`);
       params.push(filter.reasonType);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Total count
     const countRes = await this.db.query(
-      `SELECT COUNT(*) FROM refund_requests ${where}`,
+      `SELECT COUNT(*)::int AS count
+       FROM refund_requests rr
+       JOIN enrollments e ON e.id = rr.enrollment_id
+       JOIN students s ON s.id = e.student_id
+       ${where}`,
       params,
     );
     const total = parseInt(countRes.rows[0].count, 10);
@@ -69,14 +72,21 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
     const offset = (page - 1) * limit;
 
     const dataRes = await this.db.query(
-      `SELECT * FROM refund_requests ${where}
-       ORDER BY created_at DESC
+      `SELECT rr.*, s.full_name AS student_name
+       FROM refund_requests rr
+       JOIN enrollments e ON e.id = rr.enrollment_id
+       JOIN students s ON s.id = e.student_id
+       ${where}
+       ORDER BY rr.created_at DESC
        LIMIT $${idx++} OFFSET $${idx++}`,
       [...params, limit, offset],
     );
 
     return {
-      data: dataRes.rows.map((r: any) => this.mapToEntity(r)),
+      data: dataRes.rows.map((r: any) => ({
+        ...this.mapToEntity(r),
+        studentName: r.student_name ?? undefined,
+      })),
       total,
     };
   }
@@ -102,20 +112,22 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
   async updateStatus(
     id: string,
     status: RefundRequestStatus,
-    reviewData?: { reviewedBy?: string; reviewNote?: string },
+    reviewData?: { reviewedBy?: string; reviewNote?: string; receiptId?: string },
   ): Promise<void> {
     await this.db.query(
       `UPDATE refund_requests
        SET status      = $1,
            reviewed_by = $2,
            review_note = $3,
-           updated_at  = NOW()
+           reviewed_at = NOW(),
+           receipt_id  = COALESCE($5, receipt_id)
        WHERE id = $4`,
       [
         status,
         reviewData?.reviewedBy ?? null,
         reviewData?.reviewNote ?? null,
         id,
+        reviewData?.receiptId ?? null,
       ],
     );
   }

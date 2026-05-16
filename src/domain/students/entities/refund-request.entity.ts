@@ -12,6 +12,6 @@ export class RefundRequestEntity {
     public reviewedBy?: string,
     public reviewNote?: string,
     public readonly createdAt?: Date,
-    public updatedAt?: Date
+    public reviewedAt?: Date,
   ) {}
 }
