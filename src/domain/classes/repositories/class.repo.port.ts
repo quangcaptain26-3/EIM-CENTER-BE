@@ -28,6 +28,18 @@ export interface ClassListRow {
 /** Gợi ý lớp theo ngày bận — thêm số chỗ còn lại (find_compatible_classes). */
 export type CompatibleClassListRow = ClassListRow & { availableSlots: number };
 
+/** Ứng viên lớp khi tiếp tục học sau bảo lưu (GET resume-options). */
+export interface ResumeClassCandidateRow {
+  classId: string;
+  classCode: string;
+  maxCapacity: number;
+  status: 'pending' | 'active' | 'closed';
+  enrollmentCount: number;
+  completedSessions: number;
+  pendingSessions: number;
+  availableSlots: number;
+}
+
 export interface IClassRepo {
   findById(id: string): Promise<ClassEntity | null>;
   findByCode(code: string): Promise<ClassEntity | null>;
@@ -53,6 +65,11 @@ export interface IClassRepo {
     unavailableDays: number[],
     shift: 1 | 2 | null,
   ): Promise<CompatibleClassListRow[]>;
+  /** Lớp cùng program còn chỗ — phục vụ gợi ý khi resume (trừ excludeClassId nếu có). */
+  findResumeClassCandidates(
+    programId: string,
+    excludeClassId?: string | null,
+  ): Promise<ResumeClassCandidateRow[]>;
 }
 
 export interface IClassStaffRepo {

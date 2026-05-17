@@ -4,6 +4,7 @@ import {
   IClassRepo,
 } from '../../../../domain/classes/repositories/class.repo.port';
 import { ClassEntity } from '../../../../domain/classes/entities/class.entity';
+import type { ResumeClassCandidateRow } from '../../../../domain/classes/repositories/class.repo.port';
 import { CLASS_RULES } from '../../../../config/constants';
 
 export class ClassPgRepo implements IClassRepo {
@@ -440,6 +441,57 @@ export class ClassPgRepo implements IClassRepo {
       return {
         ...base,
         availableSlots: Number(row.available_slots ?? 0),
+      };
+    });
+  }
+
+  async findResumeClassCandidates(
+    programId: string,
+    excludeClassId?: string | null,
+  ): Promise<ResumeClassCandidateRow[]> {
+    const result = await this.db.query(
+      `
+      SELECT
+        c.id AS "classId",
+        c.class_code AS "classCode",
+        c.max_capacity AS "maxCapacity",
+        c.status::VARCHAR AS status,
+        COUNT(e.id) FILTER (
+          WHERE e.status IN ('trial', 'active', 'reserved')
+        )::INT AS "enrollmentCount",
+        COALESCE((
+          SELECT COUNT(*)::INT FROM sessions s
+          WHERE s.class_id = c.id AND s.status = 'completed'
+        ), 0) AS "completedSessions",
+        COALESCE((
+          SELECT COUNT(*)::INT FROM sessions s
+          WHERE s.class_id = c.id AND s.status = 'pending'
+        ), 0) AS "pendingSessions"
+      FROM classes c
+      LEFT JOIN enrollments e ON e.class_id = c.id
+      WHERE c.program_id = $1
+        AND c.status IN ('pending', 'active')
+        AND ($2::uuid IS NULL OR c.id <> $2::uuid)
+      GROUP BY c.id, c.class_code, c.max_capacity, c.status
+      HAVING c.max_capacity > COUNT(e.id) FILTER (
+        WHERE e.status IN ('trial', 'active', 'reserved')
+      )
+      `,
+      [programId, excludeClassId ?? null],
+    );
+    return result.rows.map((row: Record<string, unknown>) => {
+      const maxCapacity = Number(row.maxCapacity ?? 12);
+      const enrollmentCount = Number(row.enrollmentCount ?? 0);
+      const availableSlots = Math.max(0, maxCapacity - enrollmentCount);
+      return {
+        classId: String(row.classId),
+        classCode: String(row.classCode),
+        maxCapacity,
+        status: row.status as 'pending' | 'active' | 'closed',
+        enrollmentCount,
+        completedSessions: Number(row.completedSessions ?? 0),
+        pendingSessions: Number(row.pendingSessions ?? 0),
+        availableSlots,
       };
     });
   }

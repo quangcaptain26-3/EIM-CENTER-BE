@@ -114,12 +114,19 @@ export const TransferReservationSchema = TransferReservationBodySchema.extend({
   enrollmentId: z.string().uuid(),
 });
 
-export const ResumeEnrollmentSchema = z
+const ResumeEnrollmentBodySchema = z
   .object({
-    classId: z.string().uuid().optional(),
-    targetClassId: z.string().uuid().optional(),
+    classId: PgUuidStringSchema.optional(),
+    targetClassId: PgUuidStringSchema.optional(),
+    acknowledgeInsufficientSessions: z.boolean().optional(),
   })
   .refine((data) => !(data.classId && data.targetClassId && data.classId !== data.targetClassId), {
     message: 'classId và targetClassId phải trùng nhau nếu cùng được truyền',
     path: ['targetClassId'],
   });
+
+/** POST body có thể rỗng (tiếp tục học tại lớp hiện tại). */
+export const ResumeEnrollmentSchema = z.preprocess(
+  (val) => (val === undefined || val === null ? {} : val),
+  ResumeEnrollmentBodySchema,
+);

@@ -8,6 +8,7 @@ export function createEnrollmentController(
   dropEnrollmentUsecase: any,
   completeEnrollmentUsecase: any,
   pauseEnrollmentUsecase: any,
+  getResumeOptionsUsecase: any,
   resumeEnrollmentUsecase: any,
   transferClassUsecase: any,
   transferEnrollmentUsecase: any,
@@ -104,6 +105,16 @@ export function createEnrollmentController(
           return res.status(201).json(result);
         }
         return res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** GET /enrollments/:id/resume-options */
+    getResumeOptions: async (req: Request, res: Response) => {
+      try {
+        const result = await getResumeOptionsUsecase.execute(req.params.id);
+        res.status(200).json(result);
       } catch (error: unknown) {
         sendErrorResponse(res, error);
       }

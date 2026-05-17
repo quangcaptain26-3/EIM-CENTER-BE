@@ -119,6 +119,7 @@ import { TransferReservationUseCase } from '../../application/students/usecases/
 import { CompleteEnrollmentUseCase } from '../../application/students/usecases/complete-enrollment.usecase';
 import { PauseEnrollmentUseCase } from '../../application/students/usecases/pause-enrollment.usecase';
 import { ResumeEnrollmentUseCase } from '../../application/students/usecases/resume-enrollment.usecase';
+import { GetResumeOptionsUseCase } from '../../application/students/usecases/get-resume-options.usecase';
 import { TransferClassUseCase } from '../../application/students/usecases/transfer-class.usecase';
 import { TransferEnrollmentUseCase } from '../../application/students/usecases/transfer-enrollment.usecase';
 import { ReviewPauseRequestUseCase } from '../../application/students/usecases/review-pause-request.usecase';
@@ -392,10 +393,16 @@ const pauseEnrollmentUsecase = new PauseEnrollmentUseCase(
   studentRepo,
   auditLogRepo,
 );
+const getResumeOptionsUsecase = new GetResumeOptionsUseCase(
+  enrollmentRepo,
+  classRepo,
+  classSessionRepo,
+);
 const resumeEnrollmentUsecase = new ResumeEnrollmentUseCase(
   enrollmentRepo,
   enrollmentHistoryRepo,
   classRepo,
+  classSessionRepo,
   studentRepo,
   auditLogRepo,
 );
@@ -434,6 +441,7 @@ const recordAttendanceUsecase = new RecordAttendanceUseCase(
   attendanceRepo,
   classSessionRepo,
   classRepo,
+  enrollmentRepo,
   auditLogRepo,
 );
 const getAttendanceHistoryUsecase = new GetAttendanceHistoryUseCase(attendanceRepo);
@@ -574,6 +582,7 @@ const enrollmentController = createEnrollmentController(
   dropEnrollmentUsecase,
   completeEnrollmentUsecase,
   pauseEnrollmentUsecase,
+  getResumeOptionsUsecase,
   resumeEnrollmentUsecase,
   transferClassUsecase,
   transferEnrollmentUsecase,
@@ -906,6 +915,12 @@ enrollmentRouter.post(
 );
 enrollmentRouter.post('/:id/complete', authenticate, rbac('enrollment:create'), enrollmentController.completeEnrollment);
 enrollmentRouter.post('/:id/pause', authenticate, rbac('pause_request:create'), validate(PauseEnrollmentBodySchema), enrollmentController.pauseEnrollment);
+enrollmentRouter.get(
+  '/:id/resume-options',
+  authenticate,
+  rbac('enrollment:create', 'enrollment:read'),
+  enrollmentController.getResumeOptions,
+);
 enrollmentRouter.post(
   '/:id/resume',
   authenticate,
