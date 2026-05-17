@@ -60,6 +60,8 @@ export const ListPaymentStatusSchema = z.object({
   programCode: z.string().optional(),
   hasDebt:     z.coerce.boolean().default(true),
   debtOver30Days: z.coerce.boolean().optional(),
+  /** Khi true: gồm trial, reserved, pending (chưa kích hoạt) còn thiếu học phí */
+  includePipeline: z.coerce.boolean().optional(),
   page:        z.coerce.number().int().min(1).default(1),
   limit:       z.coerce.number().int().min(1).max(100).default(20),
 });

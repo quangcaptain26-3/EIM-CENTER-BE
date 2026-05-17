@@ -258,11 +258,16 @@ export class ExportDataUseCase {
         filename = `CongNo_${dateLabel}.xlsx`;
 
         const hasDebt = typeof filters.hasDebt === 'boolean' ? filters.hasDebt : true;
+        const includePipeline = filters.includePipeline === true;
+        const debtOver30Days = filters.debtOver30Days === true;
         const classId = typeof filters.classId === 'string' && filters.classId.trim() ? filters.classId.trim() : undefined;
         const programId =
           typeof filters.programId === 'string' && filters.programId.trim() ? filters.programId.trim() : undefined;
 
-        const conditions: string[] = [`e.status IN ('active', 'paused')`];
+        const statusList = includePipeline
+          ? `('active', 'paused', 'trial', 'reserved', 'pending')`
+          : `('active', 'paused')`;
+        const conditions: string[] = [`e.status IN ${statusList}`];
         const params: unknown[] = [];
         let idx = 1;
 
@@ -274,6 +279,10 @@ export class ExportDataUseCase {
         if (programId) {
           conditions.push(`e.program_id = $${idx++}`);
           params.push(programId);
+        }
+
+        if (debtOver30Days) {
+          conditions.push(`e.enrolled_at <= now() - interval '30 days'`);
         }
 
         const havingClause = hasDebt

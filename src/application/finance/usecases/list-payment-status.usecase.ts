@@ -41,7 +41,10 @@ export class ListPaymentStatusUseCase {
     // Mặc định màn hình học phí chỉ hiển thị nhóm còn phải thu.
     // Nếu muốn đổi mặc định, sửa default hasDebt trong schema DTO.
     const hasDebt = filter.hasDebt ?? true;
-    const conditions: string[] = [`e.status IN ('active', 'paused')`];
+    const statusList = filter.includePipeline
+      ? `('active', 'paused', 'trial', 'reserved', 'pending')`
+      : `('active', 'paused')`;
+    const conditions: string[] = [`e.status IN ${statusList}`];
     const params: any[] = [];
     let idx = 1;
 
