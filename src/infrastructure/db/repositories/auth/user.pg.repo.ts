@@ -56,6 +56,8 @@ export class UserPgRepo implements IUserRepo {
           ? Number(row['salary_per_session'])
           : undefined,
       allowance: row['allowance'] != null ? Number(row['allowance']) : 0,
+      monthlySalary:
+        row['monthly_salary'] != null ? Number(row['monthly_salary']) : undefined,
       createdBy: (row['created_by'] as string) ?? undefined,
       createdAt: row['created_at'] as Date,
       updatedAt: row['updated_at'] as Date,
@@ -86,6 +88,7 @@ export class UserPgRepo implements IUserRepo {
         u.start_date,
         u.salary_per_session,
         u.allowance,
+        u.monthly_salary,
         u.created_by,
         u.created_at,
         u.updated_at,
@@ -206,12 +209,12 @@ export class UserPgRepo implements IUserRepo {
          user_code, email, password_hash, role_id, is_active,
          full_name, gender, dob, phone, address, cccd,
          nationality, ethnicity, religion, education_level, major,
-         start_date, salary_per_session, allowance, created_by, deleted_at
+         start_date, salary_per_session, allowance, monthly_salary, created_by, deleted_at
        ) VALUES (
          $1,  $2,  $3,  $4,  $5,
          $6,  $7,  $8,  $9,  $10, $11,
          $12, $13, $14, $15, $16,
-         $17, $18, $19, $20, $21
+         $17, $18, $19, $20, $21, $22
        )
        RETURNING id`,
       [
@@ -234,6 +237,7 @@ export class UserPgRepo implements IUserRepo {
         data.startDate ?? null,
         data.salaryPerSession ?? null,
         data.allowance ?? 0,
+        data.monthlySalary ?? null,
         data.createdBy ?? null,
         data.deletedAt ?? null,
       ],

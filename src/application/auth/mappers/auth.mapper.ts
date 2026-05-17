@@ -26,6 +26,7 @@ export function toUserResponse(user: UserEntity) {
     startDate: user.startDate,
     salaryPerSession: user.salaryPerSession,
     allowance: user.allowance,
+    monthlySalary: user.monthlySalary,
     createdBy: user.createdBy,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,

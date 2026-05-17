@@ -113,6 +113,7 @@ export class CreateUserUseCase {
       startDate: data.startDate,
       salaryPerSession: data.salaryPerSession,
       allowance: data.allowance ?? 0,
+      monthlySalary: data.monthlySalary,
       createdBy: actorId,
     });
 

@@ -27,6 +27,7 @@ export const CreateUserDtoSchema = z
     startDate: z.coerce.date().optional(),
     salaryPerSession: z.number().min(0).optional(),
     allowance: z.number().min(0).optional(),
+    monthlySalary: z.number().min(0).optional(),
   })
   .refine(
     (data) => {
@@ -38,6 +39,21 @@ export const CreateUserDtoSchema = z
     {
       message: 'salaryPerSession is required for TEACHER role',
       path: ['salaryPerSession'],
+    },
+  )
+  .refine(
+    (data) => {
+      if (
+        (data.roleCode === 'ACADEMIC' || data.roleCode === 'ACCOUNTANT') &&
+        data.monthlySalary === undefined
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'monthlySalary is required for ACADEMIC and ACCOUNTANT roles',
+      path: ['monthlySalary'],
     },
   );
 

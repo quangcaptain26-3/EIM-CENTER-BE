@@ -21,6 +21,7 @@ export class UserEntity {
   startDate?: Date;
   salaryPerSession?: number; // TEACHER only
   allowance: number; // default 0
+  monthlySalary?: number; // ACADEMIC / ACCOUNTANT (staff payroll)
   createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +48,7 @@ export class UserEntity {
     startDate?: Date;
     salaryPerSession?: number;
     allowance?: number;
+    monthlySalary?: number;
     createdBy?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -72,6 +74,7 @@ export class UserEntity {
     this.startDate = data.startDate;
     this.salaryPerSession = data.salaryPerSession;
     this.allowance = data.allowance ?? 0;
+    this.monthlySalary = data.monthlySalary;
     this.createdBy = data.createdBy;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
