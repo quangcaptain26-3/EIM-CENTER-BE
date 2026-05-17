@@ -125,6 +125,20 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Buổi completed đã có điểm danh → đánh dấu submitted (khớp luồng record-attendance)
+UPDATE sessions s
+SET
+  submitted_at = COALESCE(s.submitted_at, sub.last_recorded_at, NOW()),
+  submitted_by = COALESCE(s.submitted_by, '10000000-0000-0000-0000-000000000002'::uuid)
+FROM (
+  SELECT a.session_id, MAX(a.recorded_at) AS last_recorded_at
+  FROM attendance a
+  GROUP BY a.session_id
+) sub
+WHERE s.id = sub.session_id
+  AND s.status = 'completed'
+  AND s.submitted_at IS NULL;
+
 -- EIM-LS-01: đủ 10 buổi tính buổi (present) — trừ 001 buổi 5 (học bù)
 UPDATE attendance a
 SET status = 'present'
