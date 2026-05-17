@@ -10,6 +10,7 @@ import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/student
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { TransferClassSchema } from '../dtos/enrollment.dto';
+import { resolveClassRefToId } from '../../classes/utils/resolve-class-ref';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 
@@ -22,7 +23,8 @@ export class TransferClassUseCase {
   ) {}
 
   async execute(dto: unknown, actor: { id: string; role: string; ip?: string }) {
-    const { enrollmentId, newClassId } = TransferClassSchema.parse(dto);
+    const { enrollmentId, newClassId: newClassRef } = TransferClassSchema.parse(dto);
+    const newClassId = await resolveClassRefToId(this.classRepo, newClassRef);
 
     const enrollment = await this.enrollmentRepo.findById(enrollmentId);
     if (!enrollment) {

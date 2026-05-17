@@ -37,7 +37,8 @@ export const DropEnrollmentSchema = DropEnrollmentBodySchema.extend({
 });
 
 export const TransferClassBodySchema = z.object({
-  newClassId: z.string().uuid(),
+  /** UUID lớp hoặc class_code (EIM-LS-01) — resolve ở use case */
+  newClassId: z.string().min(1, 'Chọn lớp mới'),
 });
 
 export const TransferClassSchema = TransferClassBodySchema.extend({
@@ -97,7 +98,7 @@ export const CancelReservationSchema = CancelReservationBodySchema.extend({
 });
 
 export const ReassignReservedClassBodySchema = z.object({
-  newClassId: z.string().uuid(),
+  newClassId: z.string().min(1, 'Chọn lớp mới'),
 });
 
 export const ReassignReservedClassSchema = ReassignReservedClassBodySchema.extend({
@@ -105,7 +106,7 @@ export const ReassignReservedClassSchema = ReassignReservedClassBodySchema.exten
 });
 
 export const TransferReservationBodySchema = z.object({
-  newClassId: z.string().uuid(),
+  newClassId: z.string().min(1, 'Chọn lớp mới'),
   reasonDetail: z.string().min(1, 'Vui lòng nhập lý do chuyển giữ chỗ'),
 });
 

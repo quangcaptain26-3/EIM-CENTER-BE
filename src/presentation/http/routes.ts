@@ -414,7 +414,7 @@ const reassignReservedClassUsecase = new ReassignReservedClassUseCase(
   classRepo,
   auditLogRepo,
 );
-const transferReservationUsecase = new TransferReservationUseCase(db);
+const transferReservationUsecase = new TransferReservationUseCase(db, classRepo);
 // ReviewPauseRequestUseCase(enrollmentRepo, enrollmentHistoryRepo, pauseRequestRepo)
 const reviewPauseRequestUsecase = new ReviewPauseRequestUseCase(
   enrollmentRepo,

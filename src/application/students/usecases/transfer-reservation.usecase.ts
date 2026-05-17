@@ -5,6 +5,8 @@
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { TransferReservationSchema } from '../dtos/enrollment.dto';
+import { resolveClassRefToId } from '../../classes/utils/resolve-class-ref';
+import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 import { generateEimCode } from '../../../shared/utils/eim-code';
@@ -14,7 +16,10 @@ import { computeReservationFee } from '../../../shared/utils/reservation-fee';
 type Actor = { id: string; role: string; ip?: string };
 
 export class TransferReservationUseCase {
-  constructor(private readonly db: Pool) {}
+  constructor(
+    private readonly db: Pool,
+    private readonly classRepo: IClassRepo,
+  ) {}
 
   async execute(dto: unknown, actor: Actor) {
     if (!['ADMIN', 'ACADEMIC'].includes(actor.role)) {
@@ -25,7 +30,9 @@ export class TransferReservationUseCase {
       );
     }
 
-    const { enrollmentId, newClassId, reasonDetail } = TransferReservationSchema.parse(dto);
+    const { enrollmentId, newClassId: newClassRef, reasonDetail } =
+      TransferReservationSchema.parse(dto);
+    const newClassId = await resolveClassRefToId(this.classRepo, newClassRef);
 
     const client = await this.db.connect();
     try {
