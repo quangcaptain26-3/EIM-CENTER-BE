@@ -20,7 +20,7 @@ export interface IStudentRepo {
     enrollmentStatus?: string;
     classId?: string;
     isActive?: boolean;
-    /** true = không có ghi danh trial/active/paused (học viên chưa có lớp đang học) */
+    /** true = không có ghi danh reserved/pending/trial/active/paused (chưa có lớp đang học) */
     withoutActiveEnrollment?: boolean;
     page: number;
     limit: number;

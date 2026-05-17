@@ -1,6 +1,9 @@
 import { IStudentRepo, PagedResult } from '../../../../domain/students/repositories/student.repo.port';
 import { StudentEntity } from '../../../../domain/students/entities/student.entity';
 
+/** Ghi danh đang chiếm chỗ / chưa kết thúc — đồng bộ `findPipelineByStudent`, FE BLOCKING_ENROLLMENT */
+const ENROLLMENT_PIPELINE_SQL = `('reserved', 'pending', 'trial', 'active', 'paused')`;
+
 export class StudentPgRepo implements IStudentRepo {
   constructor(private readonly db: any) {}
 
@@ -120,7 +123,7 @@ export class StudentPgRepo implements IStudentRepo {
       conditions.push(
         `NOT EXISTS (
           SELECT 1 FROM enrollments e
-          WHERE e.student_id = s.id AND e.status IN ('trial', 'active', 'paused')
+          WHERE e.student_id = s.id AND e.status IN ${ENROLLMENT_PIPELINE_SQL}
         )`,
       );
     }
@@ -164,7 +167,7 @@ export class StudentPgRepo implements IStudentRepo {
         FROM enrollments e
         JOIN classes c ON c.id = e.class_id
         JOIN programs p ON p.id = e.program_id
-        WHERE e.student_id = s.id
+        WHERE e.student_id = s.id AND e.status IN ${ENROLLMENT_PIPELINE_SQL}
         ORDER BY
           CASE
             WHEN $${latClass}::uuid IS NOT NULL AND e.class_id = $${latClass}::uuid THEN 0

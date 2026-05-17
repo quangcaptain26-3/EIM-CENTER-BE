@@ -53,7 +53,9 @@ export function createStudentController(
           classId: classId as string | undefined,
           isActive: isActive !== undefined ? isActive === 'true' : undefined,
           withoutActiveEnrollment:
-            withoutActiveEnrollment === 'true' || withoutActiveEnrollment === '1',
+            withoutActiveEnrollment === true ||
+            withoutActiveEnrollment === 'true' ||
+            withoutActiveEnrollment === '1',
           page: page ? Number(page) : 1,
           limit: limit ? Number(limit) : 20,
         });
