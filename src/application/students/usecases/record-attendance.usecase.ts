@@ -13,6 +13,7 @@
 import { IAttendanceRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { ISessionRepo } from '../../../domain/sessions/repositories/session.repo.port';
 import { IClassRepo } from '../../../domain/classes/repositories/class.repo.port';
+import { IEnrollmentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { RecordAttendanceSchema } from '../dtos/attendance.dto';
 import { isSessionDateTodayHoChiMin } from '../../../shared/utils/vn-date';
@@ -61,6 +62,7 @@ export class RecordAttendanceUseCase {
     private readonly attendanceRepo: IAttendanceRepo,
     private readonly sessionRepo: ISessionRepo,
     private readonly classRepo: IClassRepo,
+    private readonly enrollmentRepo: IEnrollmentRepo,
     private readonly auditLogRepo: IAuditLogRepo,
   ) {}
 
@@ -125,6 +127,22 @@ export class RecordAttendanceUseCase {
 
     const prevRows = await this.attendanceRepo.findBySession(sessionId);
     const prevMap = buildAttendanceMap(prevRows as unknown as AttendanceLike[]);
+
+    for (const record of records) {
+      const enrollment = await this.enrollmentRepo.findById(record.enrollmentId);
+      if (!enrollment) {
+        throw new AppError(ERROR_CODES.ENROLLMENT_NOT_FOUND, 'Không tìm thấy ghi danh trong danh sách điểm danh', 404);
+      }
+      if (!['active', 'trial'].includes(enrollment.status)) {
+        throw new AppError(
+          ERROR_CODES.VALIDATION_ERROR,
+          enrollment.status === 'paused'
+            ? 'Không thể điểm danh học viên đang bảo lưu'
+            : `Không thể điểm danh khi ghi danh ở trạng thái ${enrollment.status}`,
+          422,
+        );
+      }
+    }
 
     for (const record of records) {
       await this.attendanceRepo.upsert({
