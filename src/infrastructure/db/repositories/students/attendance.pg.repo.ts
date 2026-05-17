@@ -1,6 +1,7 @@
 import {
   AttendanceHistoryJoinRow,
   ClassAttendanceMatrixCell,
+  ClassSessionAttendanceSummary,
   IAttendanceRepo,
   SessionAttendanceDetailRow,
 } from '../../../../domain/students/repositories/attendance.repo.port';
@@ -55,6 +56,35 @@ export class AttendancePgRepo implements IAttendanceRepo {
       sessionId: String(r.sessionId),
       studentId: String(r.studentId),
       status: r.status as AttendanceStatus,
+    }));
+  }
+
+  async findSessionSummaryByClassId(classId: string): Promise<ClassSessionAttendanceSummary[]> {
+    const res = await this.db.query(
+      `
+      SELECT
+        a.session_id AS "sessionId",
+        COUNT(*)::int AS "recordCount",
+        MAX(a.recorded_at) AS "lastRecordedAt"
+      FROM attendance a
+      INNER JOIN sessions s ON s.id = a.session_id
+      WHERE s.class_id = $1
+      GROUP BY a.session_id
+      `,
+      [classId],
+    );
+    return res.rows.map((r: {
+      sessionId: string;
+      recordCount: number;
+      lastRecordedAt: Date | string | null;
+    }) => ({
+      sessionId: String(r.sessionId),
+      recordCount: Number(r.recordCount ?? 0),
+      lastRecordedAt: r.lastRecordedAt
+        ? r.lastRecordedAt instanceof Date
+          ? r.lastRecordedAt
+          : new Date(r.lastRecordedAt)
+        : null,
     }));
   }
 

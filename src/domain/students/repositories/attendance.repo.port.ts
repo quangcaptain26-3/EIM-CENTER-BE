@@ -32,12 +32,20 @@ export interface ClassAttendanceMatrixCell {
   attendanceId: string;
 }
 
+/** Tóm tắt điểm danh theo buổi trong một lớp (fallback khi chưa có submitted_at). */
+export interface ClassSessionAttendanceSummary {
+  sessionId: string;
+  recordCount: number;
+  lastRecordedAt: Date | null;
+}
+
 export interface IAttendanceRepo {
   findBySession(sessionId: string): Promise<AttendanceEntity[]>;
   /** JOIN students — dùng cho GET session (pre-fill điểm danh) */
   findDetailRowsBySession(sessionId: string): Promise<SessionAttendanceDetailRow[]>;
   /** Tất cả attendance của các buổi thuộc 1 lớp — pivot FE / export Excel đã có sẵn. */
   findCellsByClassId(classId: string): Promise<ClassAttendanceMatrixCell[]>;
+  findSessionSummaryByClassId(classId: string): Promise<ClassSessionAttendanceSummary[]>;
   findByEnrollment(enrollmentId: string): Promise<AttendanceEntity[]>;
   /** Lịch sử điểm danh có buổi / ngày / ca */
   findHistoryByEnrollment(enrollmentId: string): Promise<AttendanceHistoryJoinRow[]>;

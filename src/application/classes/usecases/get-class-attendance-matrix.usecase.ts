@@ -30,28 +30,42 @@ export class GetClassAttendanceMatrixUseCase {
       throw new AppError(ERROR_CODES.CLASS_NOT_FOUND, 'Không tìm thấy lớp', 404);
     }
 
-    const [roster, sessions, cells] = await Promise.all([
+    const [roster, sessions, cells, attendanceSummary] = await Promise.all([
       this.enrollmentRepo.findRosterByClass(classId),
       this.sessionRepo.findByClass(classId),
       this.attendanceRepo.findCellsByClassId(classId),
+      this.attendanceRepo.findSessionSummaryByClassId(classId),
     ]);
 
+    const summaryBySession = new Map(
+      attendanceSummary.map((row) => [row.sessionId, row]),
+    );
+
+    const toIso = (value: unknown): string | null => {
+      if (value == null || value === '') return null;
+      if (value instanceof Date) return value.toISOString();
+      const s = String(value).trim();
+      return s ? new Date(s).toISOString() : null;
+    };
+
     const sessionRows = sessions.map((s) => {
-      const r = s as unknown as Record<string, unknown>;
-      const no = Number(r.sessionNo ?? r.session_no ?? 0);
-      const d = r.sessionDate ?? r.session_date;
+      const summary = summaryBySession.get(s.id);
+      const submittedAt =
+        toIso(s.submittedAt) ?? toIso(summary?.lastRecordedAt) ?? null;
+      const d = s.sessionDate;
       const sessionDate =
         d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? '').slice(0, 10);
       return {
-        id: String(r.id),
-        sessionNo: no,
+        id: s.id,
+        sessionNo: s.sessionNo,
         sessionDate,
-        status: String(r.status ?? 'pending'),
-        shift: Number(r.shift ?? 1),
-        submittedAt: r.submittedAt ?? r.submitted_at ?? null,
-        submittedBy: r.submittedBy ?? r.submitted_by ?? null,
-        lastEditedAt: r.lastEditedAt ?? r.last_edited_at ?? null,
-        lastEditedBy: r.lastEditedBy ?? r.last_edited_by ?? null,
+        status: s.status ?? 'pending',
+        shift: s.shift ?? 1,
+        submittedAt,
+        submittedBy: s.submittedBy ?? null,
+        lastEditedAt: toIso(s.lastEditedAt),
+        lastEditedBy: s.lastEditedBy ?? null,
+        hasAttendanceRecords: Boolean(summary && summary.recordCount > 0),
       };
     });
 

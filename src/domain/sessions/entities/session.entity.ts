@@ -6,6 +6,10 @@ export class SessionEntity {
   sessionDate!: Date;
   shift!: 1 | 2;
   status!: 'pending' | 'completed' | 'cancelled';
+  submittedAt?: Date | string | null;
+  submittedBy?: string | null;
+  lastEditedAt?: Date | string | null;
+  lastEditedBy?: string | null;
   sessionNote?: string;
   originalDate?: Date;
   rescheduleReason?: string;

@@ -7,15 +7,37 @@ import { SessionEntity } from '../../../../domain/sessions/entities/session.enti
 export class SessionPgRepo implements ISessionRepo {
   constructor(private readonly db: SessionDbExecutor) {}
 
+  private mapRow(row: Record<string, unknown>): SessionEntity {
+    const sessionDate = row.session_date ?? row.sessionDate;
+    return new SessionEntity({
+      id: String(row.id),
+      classId: String(row.class_id ?? row.classId),
+      teacherId: String(row.teacher_id ?? row.teacherId),
+      sessionNo: Number(row.session_no ?? row.sessionNo),
+      sessionDate: sessionDate instanceof Date ? sessionDate : new Date(String(sessionDate)),
+      shift: Number(row.shift) as 1 | 2,
+      status: String(row.status) as 'pending' | 'completed' | 'cancelled',
+      submittedAt: (row.submitted_at ?? row.submittedAt) as Date | string | null | undefined,
+      submittedBy: (row.submitted_by ?? row.submittedBy) as string | null | undefined,
+      lastEditedAt: (row.last_edited_at ?? row.lastEditedAt) as Date | string | null | undefined,
+      lastEditedBy: (row.last_edited_by ?? row.lastEditedBy) as string | null | undefined,
+      sessionNote: (row.session_note ?? row.sessionNote) as string | undefined,
+      originalDate: (row.original_date ?? row.originalDate) as Date | undefined,
+      rescheduleReason: (row.reschedule_reason ?? row.rescheduleReason) as string | undefined,
+      rescheduledBy: (row.rescheduled_by ?? row.rescheduledBy) as string | undefined,
+      createdAt: (row.created_at ?? row.createdAt) as Date,
+    });
+  }
+
   async findById(id: string): Promise<SessionEntity | null> {
     const res = await this.db.query(`SELECT * FROM sessions WHERE id = $1`, [id]);
     if (!res.rows[0]) return null;
-    return new SessionEntity(res.rows[0]);
+    return this.mapRow(res.rows[0] as Record<string, unknown>);
   }
 
   async findByClass(classId: string): Promise<SessionEntity[]> {
     const res = await this.db.query(`SELECT * FROM sessions WHERE class_id = $1 ORDER BY session_no ASC`, [classId]);
-    return res.rows.map((r: any) => new SessionEntity(r));
+    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
   }
 
   async findByTeacher(teacherId: string, month: number, year: number): Promise<SessionEntity[]> {
@@ -26,7 +48,7 @@ export class SessionPgRepo implements ISessionRepo {
        ORDER BY session_date ASC`,
       [teacherId, month, year]
     );
-    return res.rows.map((r: any) => new SessionEntity(r));
+    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
   }
 
   async findEffectiveTeacherId(sessionId: string): Promise<string | null> {
@@ -58,7 +80,7 @@ export class SessionPgRepo implements ISessionRepo {
     `;
     
     const res = await this.db.query(query, values);
-    return res.rows.map((r: any) => new SessionEntity(r));
+    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
   }
 
   async update(id: string, data: any): Promise<SessionEntity> {
@@ -81,7 +103,7 @@ export class SessionPgRepo implements ISessionRepo {
     values.push(id);
     const query = `UPDATE sessions SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`;
     const res = await this.db.query(query, values);
-    return new SessionEntity(res.rows[0] as Partial<SessionEntity>);
+    return this.mapRow(res.rows[0] as Record<string, unknown>);
   }
 
   async markSubmittedOnce(sessionId: string, submittedBy: string): Promise<boolean> {
