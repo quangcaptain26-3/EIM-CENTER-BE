@@ -4,6 +4,28 @@ import { ExportDataUseCase } from '../../../../application/system/usecases/expor
 import { ImportType, ImportMode, ExportType } from '../../../../application/system/dtos/import-export.dto';
 import { ERROR_CODES } from '../../../../shared/errors/error-codes';
 
+/** Tắt ETag/304 — trình duyệt cần body 200 để tải file (axios validateStatus < 300). */
+function sendAttachment(
+  res: Response,
+  buffer: Buffer,
+  contentType: string,
+  filename: string,
+): void {
+  const safeName = filename.replace(/"/g, '');
+  const encodedName = encodeURIComponent(safeName);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`,
+  );
+  res.status(200);
+  res.set('ETag', false);
+  res.send(buffer);
+}
+
 export function createImportExportController(
   importDataUseCase: ImportDataUseCase,
   exportDataUseCase: ExportDataUseCase,
@@ -37,14 +59,7 @@ export function createImportExportController(
         const actor = (req as any).user;
 
         const result = await exportDataUseCase.execute(type, filters, actor);
-
-        const encodedName = encodeURIComponent(result.filename);
-        res.setHeader('Content-Type', result.contentType);
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${result.filename.replace(/"/g, '')}"; filename*=UTF-8''${encodedName}`,
-        );
-        res.send(result.buffer);
+        sendAttachment(res, result.buffer, result.contentType, result.filename);
       } catch (err) {
         next(err);
       }
@@ -55,9 +70,12 @@ export function createImportExportController(
         const type = req.params.type as ImportType;
         const buffer = await importDataUseCase.getTemplate(type);
 
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=template-${type}.xlsx`);
-        res.send(buffer);
+        sendAttachment(
+          res,
+          buffer,
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          `template-${type}.xlsx`,
+        );
       } catch (err) {
         next(err);
       }
