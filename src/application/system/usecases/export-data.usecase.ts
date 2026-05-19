@@ -50,6 +50,11 @@ function monthRangeEnd(ref: Date): { from: Date; to: Date } {
   return { from, to };
 }
 
+export function exportAsyncThreshold(): number {
+  const n = Number(process.env.EXPORT_ASYNC_THRESHOLD ?? 1000);
+  return Number.isFinite(n) && n > 0 ? n : 1000;
+}
+
 export class ExportDataUseCase {
   constructor(
     private readonly db: Pool,
@@ -62,6 +67,108 @@ export class ExportDataUseCase {
     private readonly auditLogsCsvExporter: AuditLogsCsvExporter,
     private readonly auditWriter: AuditWriter,
   ) {}
+
+  /** Đếm số dòng trước export — quyết định sync vs background job (E27). */
+  async countForExport(type: ExportType, filters: Record<string, unknown>, actor: any): Promise<number> {
+    const today = new Date();
+
+    switch (type) {
+      case 'students': {
+        const { rows } = await this.db.query(`SELECT COUNT(*)::int AS c FROM mv_search_students`);
+        return Number(rows[0]?.c ?? 0);
+      }
+      case 'payment-status':
+      case 'debt':
+      case 'debt-report': {
+        const hasDebt = typeof filters.hasDebt === 'boolean' ? filters.hasDebt : true;
+        const includePipeline = filters.includePipeline === true;
+        const debtOver30Days = filters.debtOver30Days === true;
+        const classId = typeof filters.classId === 'string' && filters.classId.trim() ? filters.classId.trim() : undefined;
+        const programId =
+          typeof filters.programId === 'string' && filters.programId.trim() ? filters.programId.trim() : undefined;
+        const statusList = includePipeline
+          ? `('active', 'paused', 'trial', 'reserved', 'pending')`
+          : `('active', 'paused')`;
+        const conditions: string[] = [`e.status IN ${statusList}`];
+        const params: unknown[] = [];
+        let idx = 1;
+        if (classId) {
+          conditions.push(`e.class_id = $${idx++}`);
+          params.push(classId);
+        }
+        if (programId) {
+          conditions.push(`e.program_id = $${idx++}`);
+          params.push(programId);
+        }
+        if (debtOver30Days) {
+          conditions.push(`e.enrolled_at <= now() - interval '30 days'`);
+        }
+        const havingClause = hasDebt
+          ? `HAVING (e.tuition_fee - COALESCE(SUM(r.amount), 0)) > 0`
+          : '';
+        const { rows } = await this.db.query(
+          `
+          SELECT COUNT(*)::int AS c FROM (
+            SELECT e.id
+            FROM enrollments e
+            JOIN students s ON s.id = e.student_id
+            JOIN classes c ON c.id = e.class_id
+            LEFT JOIN receipts r ON r.enrollment_id = e.id
+            WHERE ${conditions.join(' AND ')}
+            GROUP BY e.id, e.tuition_fee
+            ${havingClause}
+          ) sub
+          `,
+          params,
+        );
+        return Number(rows[0]?.c ?? 0);
+      }
+      case 'receipts': {
+        const { from, to } = monthRangeEnd(coerceDate(filters.dateTo as string, today));
+        const dateFrom = coerceDate(filters.dateFrom, from);
+        const dateTo = coerceDate(filters.dateTo, to);
+        const fromLabel = fileDate(dateFrom);
+        const toLabel = fileDate(dateTo);
+        const { rows } = await this.db.query(
+          `
+          SELECT COUNT(*)::int AS c FROM receipts r
+          WHERE r.payment_date >= $1::date AND r.payment_date <= $2::date
+          `,
+          [fromLabel, toLabel],
+        );
+        return Number(rows[0]?.c ?? 0);
+      }
+      case 'audit-logs': {
+        if (actor.role !== 'ADMIN') return 0;
+        const { rows } = await this.db.query(`SELECT COUNT(*)::int AS c FROM audit_logs`);
+        return Number(rows[0]?.c ?? 0);
+      }
+      case 'class-roster': {
+        const classId = filters.classId as string | undefined;
+        if (!classId) return 0;
+        await ensureClassRosterExportAccess(this.db, actor, classId);
+        const { rows } = await this.db.query(
+          `SELECT COUNT(*)::int AS c FROM enrollments e WHERE e.class_id = $1 AND e.status IN ('trial', 'active')`,
+          [classId],
+        );
+        return Number(rows[0]?.c ?? 0);
+      }
+      case 'attendance':
+      case 'attendance-sheet': {
+        const classId = filters.classId as string | undefined;
+        if (!classId) return 0;
+        await ensureClassAttendanceScope(this.db, actor, classId);
+        const { rows } = await this.db.query(
+          `SELECT COUNT(*)::int AS c FROM students s
+           JOIN enrollments e ON e.student_id = s.id AND e.class_id = $1 AND e.status IN ('trial', 'active')`,
+          [classId],
+        );
+        return Number(rows[0]?.c ?? 0);
+      }
+      default:
+        return 0;
+    }
+  }
 
   async execute(type: ExportType, filters: Record<string, unknown>, actor: any): Promise<ExportResult> {
     let buffer: Buffer;
