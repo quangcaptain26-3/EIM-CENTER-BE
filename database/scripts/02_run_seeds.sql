@@ -18,3 +18,4 @@ SET client_encoding TO 'UTF8';
 \i 'database/seeds/09_finance.sql'
 \i 'database/seeds/10_usecase_coverage.sql'
 \i 'database/seeds/11_class_schedule_suggestions.sql'
+\i 'database/seeds/12_usecase_expansion.sql'

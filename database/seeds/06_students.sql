@@ -1,5 +1,5 @@
 -- =============================================================================
--- SEED 06: 30 học sinh — mã cố định, phân bổ theo kịch bản ghi danh
+-- SEED 06: 30 học sinh gốc (+20 HS bổ sung trong seed 12_usecase_expansion.sql)
 -- =============================================================================
 
 INSERT INTO students (id, student_code, full_name, dob, gender, address, school_name, parent_name, parent_phone, parent_phone2, parent_zalo, test_result, current_level, created_by) VALUES

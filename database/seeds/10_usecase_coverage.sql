@@ -67,7 +67,7 @@ INSERT INTO staff_leave_requests (
  '10000000-0000-0000-0000-000000000001', '2026-04-11 17:00:00+07', 'Đã ghi nhận',
  '2026-04-10 15:00:00+07');
 
--- Chốt lương NVHC tháng 4/2026 — Phạm Thu Hương (Q18/Q29)
+-- Chốt lương NVHC tháng 4/2026 — Bùi Khánh Linh (Q18/Q29)
 INSERT INTO staff_payroll_records (
   id, staff_id, period_month, period_year,
   monthly_salary_snapshot, unpaid_days, deduction_amount, gross_salary,
@@ -273,7 +273,7 @@ INSERT INTO enrollment_history (enrollment_id, action, from_status, to_status, s
 
 -- ── Audit bổ sung (≥5) ─────────────────────────────────────────────────────
 INSERT INTO audit_logs (actor_id, actor_code, actor_role, actor_ip, action, entity_type, entity_id, entity_code, description, event_time) VALUES
-('10000000-0000-0000-0000-000000000001', 'EIM-ADM-47291', 'ADMIN', '127.0.0.1', 'STAFF:leave_approved', 'staff_leave_requests', 'c1000000-0000-0000-0000-000000000001', NULL, 'Duyệt phép năm cho Lê Thị Bích 05/05/2026', now() - INTERVAL '11 days'),
+('10000000-0000-0000-0000-000000000001', 'EIM-ADM-47291', 'ADMIN', '127.0.0.1', 'STAFF:leave_approved', 'staff_leave_requests', 'c1000000-0000-0000-0000-000000000001', NULL, 'Duyệt phép năm cho Lê Thị Thế 05/05/2026', now() - INTERVAL '11 days'),
 ('10000000-0000-0000-0000-000000000004', 'EIM-NKT-62740', 'ACCOUNTANT', '127.0.0.1', 'FINANCE:receipt_created', 'receipt', 'b1000000-0000-0000-0000-000000000031', 'EIM-PT-10029', 'Thu phí giữ chỗ Kindy', now() - INTERVAL '18 days'),
 ('10000000-0000-0000-0000-000000000002', 'EIM-NHV-83014', 'ACADEMIC', '127.0.0.1', 'CLASS:cover_assigned', 'session', NULL, NULL, 'Gán cover bổ sung lớp Starters / Movers / Flyers / Kindy (seed 10)', now() - INTERVAL '17 days'),
 ('10000000-0000-0000-0000-000000000002', 'EIM-NHV-83014', 'ACADEMIC', '127.0.0.1', 'MAKEUP:created', 'makeup_session', NULL, 'EIM-BB-11002', 'Tạo lịch học bù Movers (mẫu)', now() - INTERVAL '9 days'),

@@ -5,28 +5,28 @@
 
 -- Admin
 INSERT INTO users (id, user_code, email, password_hash, role_id, full_name, gender, dob, phone, start_date, allowance) VALUES
-('10000000-0000-0000-0000-000000000001', 'EIM-ADM-47291', 'director@eim.edu.vn',
+('10000000-0000-0000-0000-000000000001', 'EIM-ADM-47291', 'tunganhtran@eim.edu.vn',
  '$2b$12$uJq4xPFhZH7Yyjdl8KTjOetNe8YUwGwTZu7onsJquHz7tvy92Th5e',
  '00000000-0000-0000-0000-000000000001',
- 'Michael Thompson', 'male', '1978-03-20', '0901234567', '2018-01-10', 0);
+ 'Trần Tùng Anh', 'male', '1978-03-20', '0901234567', '2018-01-10', 0);
 
 -- Academic
 INSERT INTO users (id, user_code, email, password_hash, role_id, full_name, gender, dob, phone, start_date, allowance) VALUES
-('10000000-0000-0000-0000-000000000002', 'EIM-NHV-83014', 'le.bich@eim.edu.vn',
+('10000000-0000-0000-0000-000000000002', 'EIM-NHV-83014', 'lethe@eim.edu.vn',
  '$2b$12$uJq4xPFhZH7Yyjdl8KTjOetNe8YUwGwTZu7onsJquHz7tvy92Th5e',
  '00000000-0000-0000-0000-000000000002',
- 'Lê Thị Bích', 'female', '1992-08-22', '0912345678', '2020-03-01', 300000),
-('10000000-0000-0000-0000-000000000003', 'EIM-NHV-61205', 'tran.duc@eim.edu.vn',
+ 'Lê Thị Thế', 'female', '1992-08-22', '0912345678', '2020-03-01', 300000),
+('10000000-0000-0000-0000-000000000003', 'EIM-NHV-61205', 'dangthuminh@eim.edu.vn',
  '$2b$12$uJq4xPFhZH7Yyjdl8KTjOetNe8YUwGwTZu7onsJquHz7tvy92Th5e',
  '00000000-0000-0000-0000-000000000002',
- 'Trần Minh Đức', 'male', '1990-11-30', '0923456789', '2021-06-15', 300000);
+ 'Đặng Thu Minh', 'male', '1990-11-30', '0923456789', '2021-06-15', 300000);
 
 -- Accountant
 INSERT INTO users (id, user_code, email, password_hash, role_id, full_name, gender, dob, phone, start_date, allowance) VALUES
-('10000000-0000-0000-0000-000000000004', 'EIM-NKT-62740', 'pham.huong@eim.edu.vn',
+('10000000-0000-0000-0000-000000000004', 'EIM-NKT-62740', 'khanhlinhbui@eim.edu.vn',
  '$2b$12$uJq4xPFhZH7Yyjdl8KTjOetNe8YUwGwTZu7onsJquHz7tvy92Th5e',
  '00000000-0000-0000-0000-000000000003',
- 'Phạm Thu Hương', 'female', '1987-05-10', '0934567890', '2019-07-01', 300000);
+ 'Bùi Khánh Linh', 'female', '1987-05-10', '0934567890', '2019-07-01', 300000);
 
 -- Teachers (English names)
 INSERT INTO users (id, user_code, email, password_hash, role_id, full_name, gender, dob, phone, start_date, salary_per_session, allowance) VALUES
