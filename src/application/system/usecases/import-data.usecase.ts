@@ -151,11 +151,13 @@ export class ImportDataUseCase {
         const attendanceRepo = new AttendancePgRepo(client);
         const sessionRepo = new ClassSessionPgRepo(client);
         const classRepo = new ClassPgRepo(client);
+        const enrollmentRepo = new EnrollmentPgRepo(client);
         const auditLogRepo = new AuditLogPgRepo(client);
         const uc = new RecordAttendanceUseCase(
           attendanceRepo,
           sessionRepo,
           classRepo,
+          enrollmentRepo,
           auditLogRepo,
         );
         await uc.execute(
