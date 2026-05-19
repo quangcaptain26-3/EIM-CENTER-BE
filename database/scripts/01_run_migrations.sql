@@ -35,3 +35,4 @@ SET client_encoding TO 'UTF8';
 \i 'database/migrations/26_class_schedule_suggestions.sql'
 \i 'database/migrations/27_classes_max_capacity_12.sql'
 \i 'database/migrations/28_reservation_fee_ratio.sql'
+\i 'database/migrations/29_fix_staff_payroll_preview_ambiguous.sql'

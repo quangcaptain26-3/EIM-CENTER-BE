@@ -23,6 +23,7 @@ RETURNS TABLE (
   gross_salary DECIMAL(12,0),
   total_deduction DECIMAL(12,0)
 ) AS $$
+#variable_conflict use_column
 DECLARE
   salary_value DECIMAL(12,0);
   unpaid_count INT;
@@ -31,9 +32,9 @@ DECLARE
   ded DECIMAL(12,0);
   gross DECIMAL(12,0);
 BEGIN
-  SELECT COALESCE(monthly_salary, 0) INTO salary_value
-  FROM users
-  WHERE id = p_staff_id;
+  SELECT COALESCE(u.monthly_salary, 0) INTO salary_value
+  FROM users u
+  WHERE u.id = p_staff_id;
 
   SELECT COALESCE(
     (SELECT value::int FROM system_config WHERE key = 'monthly_leave_allowance' LIMIT 1),
