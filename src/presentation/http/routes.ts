@@ -4,6 +4,7 @@ import { db, holidayRepo } from '../../bootstrap/container';
 import { createHealthHandler } from './health.controller';
 import { sendErrorResponse } from './utils/http-error.util';
 import { ERROR_CODES } from '../../shared/errors/error-codes';
+import { assertPayrollPeriodNotFuture } from '../../shared/utils/payroll-period.guard';
 
 // ─── Auth / User Repositories ────────────────────────────────────────────────
 import { UserPgRepo } from '../../infrastructure/db/repositories/auth/user.pg.repo';
@@ -68,6 +69,7 @@ import { AnnounceClassUseCase } from '../../application/classes/usecases/announc
 import { ListUpcomingClassesUseCase } from '../../application/classes/usecases/list-upcoming-classes.usecase';
 import { GetRosterUseCase } from '../../application/classes/usecases/get-roster.usecase';
 import { ListRoomsUseCase } from '../../application/classes/usecases/list-rooms.usecase';
+import { ListRoomAvailabilityUseCase } from '../../application/classes/usecases/list-room-availability.usecase';
 import { ListProgramsUseCase } from '../../application/classes/usecases/list-programs.usecase';
 import { UpdateProgramDefaultFeeUseCase } from '../../application/classes/usecases/update-program-default-fee.usecase';
 import { GenerateSessionsUseCase } from '../../application/sessions/usecases/generate-sessions.usecase';
@@ -118,6 +120,7 @@ import { ReassignReservedClassUseCase } from '../../application/students/usecase
 import { TransferReservationUseCase } from '../../application/students/usecases/transfer-reservation.usecase';
 import { CompleteEnrollmentUseCase } from '../../application/students/usecases/complete-enrollment.usecase';
 import { PauseEnrollmentUseCase } from '../../application/students/usecases/pause-enrollment.usecase';
+import { GetPauseEligibilityUseCase } from '../../application/students/usecases/get-pause-eligibility.usecase';
 import { ResumeEnrollmentUseCase } from '../../application/students/usecases/resume-enrollment.usecase';
 import { GetResumeOptionsUseCase } from '../../application/students/usecases/get-resume-options.usecase';
 import { TransferClassUseCase } from '../../application/students/usecases/transfer-class.usecase';
@@ -236,6 +239,12 @@ import { ClassRosterExporter } from '../../infrastructure/excel/exporters/class-
 import { AuditLogsCsvExporter } from '../../infrastructure/excel/exporters/audit-logs-csv.exporter';
 import { ImportDataUseCase } from '../../application/system/usecases/import-data.usecase';
 import { ExportDataUseCase } from '../../application/system/usecases/export-data.usecase';
+import { ExportJobPgRepo } from '../../infrastructure/db/repositories/system/export-job.pg.repo';
+import { NotificationPgRepo } from '../../infrastructure/db/repositories/system/notification.pg.repo';
+import { RunExportJobUseCase } from '../../application/system/usecases/run-export-job.usecase';
+import { GetExportJobUseCase } from '../../application/system/usecases/get-export-job.usecase';
+import { ListNotificationsUseCase } from '../../application/system/usecases/list-notifications.usecase';
+import { MarkAllNotificationsReadUseCase } from '../../application/system/usecases/mark-all-notifications-read.usecase';
 import { createImportExportController } from './controllers/system/import-export.controller';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,10 +298,10 @@ const replaceTeacherUsecase = new ReplaceTeacherUseCase(
   auditLogRepo,
   db,
 );
-const closeClassUsecase = new CloseClassUseCase(classRepo, classSessionRepo, auditLogRepo);
 const announceClassUsecase = new AnnounceClassUseCase(classRepo);
 const listUpcomingClassesUsecase = new ListUpcomingClassesUseCase(classRepo);
 const listRoomsUsecase = new ListRoomsUseCase(roomRepo);
+const listRoomAvailabilityUsecase = new ListRoomAvailabilityUseCase(roomRepo, conflictCheckerService);
 const listProgramsUsecase = new ListProgramsUseCase(programRepo);
 const updateProgramDefaultFeeUsecase = new UpdateProgramDefaultFeeUseCase(programRepo, auditLogRepo);
 const generateSessionsUsecase = new GenerateSessionsUseCase(classRepo, classStaffRepo, classSessionRepo, holidayRepo, programRepo, auditLogRepo, sessionGeneratorService, db);
@@ -329,6 +338,13 @@ const findAvailableCoversUsecase = new FindAvailableCoversUseCase(
 const studentRepo = new StudentPgRepo(db);
 const enrollmentRepo = new EnrollmentPgRepo(db);
 const enrollmentHistoryRepo = new EnrollmentHistoryPgRepo(db);
+const closeClassUsecase = new CloseClassUseCase(
+  classRepo,
+  classSessionRepo,
+  enrollmentRepo,
+  enrollmentHistoryRepo,
+  auditLogRepo,
+);
 const pauseRequestRepo = new PauseRequestPgRepo(db);
 const attendanceRepo = new AttendancePgRepo(db);
 const makeupSessionRepo = new MakeupSessionPgRepo(db);
@@ -393,6 +409,7 @@ const pauseEnrollmentUsecase = new PauseEnrollmentUseCase(
   studentRepo,
   auditLogRepo,
 );
+const getPauseEligibilityUsecase = new GetPauseEligibilityUseCase(enrollmentRepo, pauseRequestRepo);
 const getResumeOptionsUsecase = new GetResumeOptionsUseCase(
   enrollmentRepo,
   classRepo,
@@ -571,7 +588,7 @@ const sessionController = createSessionController(
   userRepo,
   classRepo,
 );
-const roomController = createRoomController(listRoomsUsecase);
+const roomController = createRoomController(listRoomsUsecase, listRoomAvailabilityUsecase);
 const programController = createProgramController(listProgramsUsecase, updateProgramDefaultFeeUsecase);
 
 const studentController = createStudentController(createStudentUsecase, listStudentsUsecase, getStudentUsecase, updateStudentUsecase);
@@ -582,6 +599,7 @@ const enrollmentController = createEnrollmentController(
   dropEnrollmentUsecase,
   completeEnrollmentUsecase,
   pauseEnrollmentUsecase,
+  getPauseEligibilityUsecase,
   getResumeOptionsUsecase,
   resumeEnrollmentUsecase,
   transferClassUsecase,
@@ -710,7 +728,24 @@ const exportDataUseCase = new ExportDataUseCase(
   auditLogsCsvExporter,
   auditWriter,
 );
-const importExportController = createImportExportController(importDataUseCase, exportDataUseCase);
+const exportJobRepo = new ExportJobPgRepo(db);
+const notificationRepo = new NotificationPgRepo(db);
+const runExportJobUseCase = new RunExportJobUseCase(
+  exportJobRepo,
+  exportDataUseCase,
+  userRepo,
+  notificationRepo,
+);
+const getExportJobUseCase = new GetExportJobUseCase(exportJobRepo);
+const listNotificationsUseCase = new ListNotificationsUseCase(notificationRepo);
+const markAllNotificationsReadUseCase = new MarkAllNotificationsReadUseCase(notificationRepo);
+const importExportController = createImportExportController(
+  importDataUseCase,
+  exportDataUseCase,
+  exportJobRepo,
+  runExportJobUseCase,
+  getExportJobUseCase,
+);
 
 const dashboardStatsUsecase = new DashboardStatsUseCase(db);
 const dashboardController = createDashboardController(dashboardStatsUsecase);
@@ -864,6 +899,7 @@ sessionRouter.get(
 
 // Rooms / Programs
 const roomRouter = Router();
+roomRouter.get('/availability', authenticate, roomController.listRoomAvailability);
 roomRouter.get('/', authenticate, roomController.listRooms);
 
 const programRouter = Router();
@@ -915,6 +951,12 @@ enrollmentRouter.post(
 );
 enrollmentRouter.post('/:id/complete', authenticate, rbac('enrollment:create'), enrollmentController.completeEnrollment);
 enrollmentRouter.post('/:id/pause', authenticate, rbac('pause_request:create'), validate(PauseEnrollmentBodySchema), enrollmentController.pauseEnrollment);
+enrollmentRouter.get(
+  '/:id/pause-eligibility',
+  authenticate,
+  rbac('enrollment:read', 'pause_request:create'),
+  enrollmentController.getPauseEligibility,
+);
 enrollmentRouter.get(
   '/:id/resume-options',
   authenticate,
@@ -1151,7 +1193,18 @@ staffRouter.get('/payroll/preview', authenticate, rbac('*', 'payroll:read'), asy
       return res.status(400).json({ code: ERROR_CODES.VALIDATION_ERROR, message: 'staffId, month, year là bắt buộc' });
     }
     const previewRes = await db.query(
-      `SELECT p.*, u.full_name AS staff_name, u.user_code AS staff_code
+      `SELECT
+         p.staff_id,
+         p.monthly_salary,
+         p.unpaid_days,
+         p.paid_leave_days_used,
+         p.monthly_paid_allowance,
+         p.remaining_paid_days,
+         p.deduction_amount,
+         p.gross_salary,
+         p.total_deduction,
+         u.full_name AS staff_name,
+         u.user_code AS staff_code
        FROM fn_staff_payroll_preview($1::uuid, $2::int, $3::int) p
        JOIN users u ON u.id = p.staff_id`,
       [staffId, month, year],
@@ -1191,9 +1244,15 @@ staffRouter.post('/payroll/finalize', authenticate, rbac('*', 'payroll:finalize'
   try {
     const actor = (req as any).user;
     const { staffId, month, year } = req.body ?? {};
+    const m = Number(month);
+    const y = Number(year);
+    if (!staffId || !m || !y) {
+      return res.status(400).json({ code: ERROR_CODES.VALIDATION_ERROR, message: 'staffId, month, year là bắt buộc' });
+    }
+    assertPayrollPeriodNotFuture(m, y);
     const previewRes = await db.query(
       `SELECT * FROM fn_staff_payroll_preview($1::uuid, $2::int, $3::int)`,
-      [staffId, month, year],
+      [staffId, m, y],
     );
     if (!previewRes.rows[0]) {
       return res.status(400).json({ code: ERROR_CODES.VALIDATION_ERROR, message: 'Không thể preview payroll' });
@@ -1208,8 +1267,8 @@ staffRouter.post('/payroll/finalize', authenticate, rbac('*', 'payroll:finalize'
        RETURNING *`,
       [
         staffId,
-        month,
-        year,
+        m,
+        y,
         p.monthly_salary,
         p.unpaid_days,
         p.deduction_amount,
@@ -1276,12 +1335,31 @@ searchRouter.get('/users', authenticate, rbac('*'), searchController.searchUsers
 searchRouter.get('/classes', authenticate, searchController.searchClasses);
 router.use('/search', searchRouter);
 
-// ── Notifications (stub — chưa có bảng; tránh 404 từ FE) ───────────────────────
-router.get('/notifications', authenticate, (_req, res) => {
-  res.status(200).json({ data: [], unreadCount: 0 });
+// ── Notifications (Q48 — export events; mở rộng producer sau) ─────────────────
+router.get('/notifications', authenticate, async (req, res, next) => {
+  try {
+    const user = (req as { user?: { id: string } }).user;
+    if (!user?.id) {
+      return res.status(401).json({ code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized' });
+    }
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+    const result = await listNotificationsUseCase.execute(user.id, limit);
+    return res.status(200).json(result);
+  } catch (e) {
+    return next(e);
+  }
 });
-router.post('/notifications/read-all', authenticate, (_req, res) => {
-  res.status(200).json({ data: { ok: true } });
+router.post('/notifications/read-all', authenticate, async (req, res, next) => {
+  try {
+    const user = (req as { user?: { id: string } }).user;
+    if (!user?.id) {
+      return res.status(401).json({ code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized' });
+    }
+    const result = await markAllNotificationsReadUseCase.execute(user.id);
+    return res.status(200).json({ data: result });
+  } catch (e) {
+    return next(e);
+  }
 });
 
 // ── Import/Export routes ────────────────────────────────────────────────────────
@@ -1294,6 +1372,8 @@ importExportRouter.post(
   upload.single('file'),
   importExportController.importData,
 );
+importExportRouter.get('/export/jobs/:jobId/download', authenticate, importExportController.downloadExportJob);
+importExportRouter.get('/export/jobs/:jobId', authenticate, importExportController.getExportJob);
 importExportRouter.get('/export/:type', authenticate, rbacExportByType, importExportController.exportData);
 importExportRouter.post('/jobs/expire-reserved-enrollments', authenticate, rbac('*'), async (_req, res) => {
   try {
