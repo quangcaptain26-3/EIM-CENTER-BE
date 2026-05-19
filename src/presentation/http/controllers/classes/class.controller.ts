@@ -116,7 +116,7 @@ export function createClassController(
         const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
         const force = body.force === true;
         const result = await closeClassUsecase.execute(userId, role, req.params.id, { force });
-        res.status(200).json({ success: result });
+        res.status(200).json({ success: true, ...result });
       } catch (error: unknown) {
         sendErrorResponse(res, error);
       }
