@@ -50,9 +50,10 @@ export class ListTeacherSessionsUseCase {
         const classId = s.classId ?? s.class_id ?? '';
         if (!classCache.has(classId)) {
           const cls = await this.classRepo.findById(classId);
+          const clsJoin = cls as { classCode?: string; roomCode?: string | null } | null;
           classCache.set(classId, {
-            classCode: cls?.classCode,
-            roomCode: cls?.roomCode ?? null,
+            classCode: clsJoin?.classCode,
+            roomCode: clsJoin?.roomCode ?? null,
           });
         }
         const classMeta = classCache.get(classId);

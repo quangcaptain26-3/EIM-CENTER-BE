@@ -37,7 +37,7 @@ export class SessionPgRepo implements ISessionRepo {
 
   async findByClass(classId: string): Promise<SessionEntity[]> {
     const res = await this.db.query(`SELECT * FROM sessions WHERE class_id = $1 ORDER BY session_no ASC`, [classId]);
-    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
+    return res.rows.map((r) => this.mapRow(r as Record<string, unknown>));
   }
 
   async findByTeacher(teacherId: string, month: number, year: number): Promise<SessionEntity[]> {
@@ -48,7 +48,7 @@ export class SessionPgRepo implements ISessionRepo {
        ORDER BY session_date ASC`,
       [teacherId, month, year]
     );
-    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
+    return res.rows.map((r) => this.mapRow(r as Record<string, unknown>));
   }
 
   async findEffectiveTeacherId(sessionId: string): Promise<string | null> {
@@ -80,7 +80,7 @@ export class SessionPgRepo implements ISessionRepo {
     `;
     
     const res = await this.db.query(query, values);
-    return res.rows.map((r: Record<string, unknown>) => this.mapRow(r));
+    return res.rows.map((r) => this.mapRow(r as Record<string, unknown>));
   }
 
   async update(id: string, data: any): Promise<SessionEntity> {
