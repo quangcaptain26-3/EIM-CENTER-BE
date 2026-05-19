@@ -22,6 +22,7 @@ import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 import { generateEimCode } from '../../../shared/utils/eim-code';
 import { PreviewPayrollUseCase } from './preview-payroll.usecase';
+import { assertPayrollPeriodNotFuture } from '../../../shared/utils/payroll-period.guard';
 
 export class FinalizePayrollUseCase {
   constructor(
@@ -44,6 +45,7 @@ export class FinalizePayrollUseCase {
     }
 
     const { teacherId, month, year } = PayrollPeriodSchema.parse(dto);
+    assertPayrollPeriodNotFuture(month, year);
 
     // 1. Preview (includes already-finalized check)
     const preview = await this.previewPayrollUseCase.execute({ teacherId, month, year });
