@@ -65,6 +65,7 @@ export class CreateStudentUseCase {
       parentPhone2: validData.parentPhone2,
       parentZalo: validData.parentZalo,
       testResult: validData.testResult,
+      currentLevel: validData.currentLevel,
       isActive: true,
       createdBy: actor.id
     });

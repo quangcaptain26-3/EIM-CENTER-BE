@@ -30,12 +30,14 @@ export class RbacService {
 
     ACCOUNTANT: [
       'receipt:create',
+      'refund:approve',
       'receipt:void',
       'payroll:finalize',
       'payroll:read',
       'finance:dashboard',
       'debt:read',
       'enrollment:read',
+      'enrollment:transfer_tuition',
       'student:read',
     ],
 

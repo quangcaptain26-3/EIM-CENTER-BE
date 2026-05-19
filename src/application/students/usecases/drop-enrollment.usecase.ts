@@ -1,21 +1,20 @@
 /**
- * Thôi học (drop) enrollment — Q13 (chủ quan / trung tâm / đặc biệt), OVERVIEW §4.3, §6.3.
- *
- * Cách vận hành:
- * - Chỉ chuyển `dropped` khi `EnrollmentTransitionRule` cho phép từ trạng thái hiện tại.
- * - `reason_type`: subjective_* (không hoàn phí, bắt buộc chọn mã — Q13), `center_unable_to_open`,
- *   `special_case`, hoặc `center_unable_within_60days` (chuẩn hóa lưu history như `center_unable_to_open`).
- * - Đã học ≥ 3 buổi: chỉ chấp nhận lý do chủ quan (`subjective_*`) — tránh “drop khách quan” giữa khóa mà không qua `refund_request`.
- * - Ghi `enrollment_history` + audit (append-only) — không xóa dữ liệu tài chính đã phát sinh.
+ * Thôi học (drop) enrollment — Q13, TH1.
+ * Lý do trung tâm (center_unable_*): chỉ ADMIN, tạo HP pending với tổng phiếu thu dương.
  */
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
+import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
+import { IReceiptRepo } from '../../../domain/finance/repositories/receipt.repo.port';
 import { EnrollmentTransitionRule } from '../../../domain/students/services/enrollment-transition.rule';
 import { DropEnrollmentSchema } from '../dtos/enrollment.dto';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
 import { logEnrollmentStatusAudit, type EnrollmentAuditActor } from '../helpers/log-enrollment-audit';
 import { generateEimCode } from '../../../shared/utils/eim-code';
+import { computePaidPositiveTotal } from '../../finance/helpers/center-refund-amount.helper';
+
+const CENTER_FAULT_REASONS = new Set(['center_unable_to_open', 'center_unable_within_60days']);
 
 export class DropEnrollmentUseCase {
   constructor(
@@ -24,7 +23,8 @@ export class DropEnrollmentUseCase {
     private readonly transitionRule: EnrollmentTransitionRule,
     private readonly studentRepo: IStudentRepo,
     private readonly auditLogRepo: IAuditLogRepo,
-    private readonly db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> },
+    private readonly refundRequestRepo: IRefundRequestRepo,
+    private readonly receiptRepo: IReceiptRepo,
   ) {}
 
   async execute(dto: unknown, actor: EnrollmentAuditActor) {
@@ -56,7 +56,18 @@ export class DropEnrollmentUseCase {
     if (!allowedReasons.has(normalizedReasonType)) {
       throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'reason_type không hợp lệ', 422);
     }
+
     const isSubjective = normalizedReasonType.startsWith('subjective_');
+    const isCenterFault = normalizedReasonType === 'center_unable_to_open';
+
+    if (isCenterFault && actor.role !== 'ADMIN') {
+      throw new AppError(
+        ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
+        'Lý do trung tâm không khai giảng chỉ Giám đốc (ADMIN) được chọn. Vui lòng liên hệ Giám đốc hoặc tạo yêu cầu hoàn phí từ menu Tài chính.',
+        403,
+      );
+    }
+
     if (enrollment.sessionsAttended >= 3 && !isSubjective) {
       throw new AppError(
         ERROR_CODES.VALIDATION_ERROR,
@@ -66,13 +77,30 @@ export class DropEnrollmentUseCase {
     }
 
     if (enrollment.sessionsAttended < 3) {
-      if (!isSubjective && normalizedReasonType !== 'center_unable_to_open') {
+      if (!isSubjective && !isCenterFault) {
         throw new AppError(
           ERROR_CODES.VALIDATION_ERROR,
           'Lý do không hợp lệ. Chỉ chấp nhận center_unable_to_open hoặc subjective_*',
           422,
         );
       }
+    }
+
+    let centerRefundAmount = 0;
+    let refundReasonType: 'center_unable_to_open' | 'center_unable_within_60days' | null = null;
+    if (isCenterFault) {
+      centerRefundAmount = await computePaidPositiveTotal(this.receiptRepo, enrollmentId);
+      if (centerRefundAmount <= 0) {
+        throw new AppError(
+          ERROR_CODES.VALIDATION_ERROR,
+          'Không có phiếu thu dương — không thể tạo yêu cầu hoàn trung tâm',
+          422,
+        );
+      }
+      refundReasonType =
+        reasonType === 'center_unable_within_60days'
+          ? 'center_unable_within_60days'
+          : 'center_unable_to_open';
     }
 
     const previousStatus = enrollment.status;
@@ -90,14 +118,16 @@ export class DropEnrollmentUseCase {
       changedBy: actor.id,
     });
 
-    if (normalizedReasonType === 'center_unable_to_open') {
-      await this.db.query(
-        `INSERT INTO refund_requests (
-          request_code, enrollment_id, reason_type, reason_detail, refund_amount, status, requested_by
-        )
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
-        [generateEimCode('HP'), enrollmentId, 'center_unable_to_open', reasonDetail, enrollment.tuitionFee, actor.id],
-      );
+    if (isCenterFault && refundReasonType) {
+      await this.refundRequestRepo.create({
+        requestCode: generateEimCode('HP'),
+        enrollmentId,
+        reasonType: refundReasonType,
+        reasonDetail,
+        refundAmount: centerRefundAmount,
+        status: 'pending',
+        requestedBy: actor.id,
+      });
     }
 
     const student = await this.studentRepo.findById(enrollment.studentId);

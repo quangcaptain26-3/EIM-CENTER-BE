@@ -19,6 +19,7 @@ export function createStudentController(
   listStudentsUsecase: any,
   getStudentUsecase: any,
   updateStudentUsecase: any,
+  listStudentEnrollmentHistoryUsecase: any,
 ) {
   return {
     /** GET /students */
@@ -83,6 +84,16 @@ export function createStudentController(
     getStudent: async (req: Request, res: Response) => {
       try {
         const result = await getStudentUsecase.execute(req.params.id);
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** GET /students/:id/enrollment-history */
+    listEnrollmentHistory: async (req: Request, res: Response) => {
+      try {
+        const result = await listStudentEnrollmentHistoryUsecase.execute(req.params.id);
         res.status(200).json(result);
       } catch (error: unknown) {
         sendErrorResponse(res, error);

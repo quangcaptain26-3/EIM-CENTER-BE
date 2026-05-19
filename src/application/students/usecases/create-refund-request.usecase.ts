@@ -1,10 +1,6 @@
 /**
- * Tạo yêu cầu hoàn phí (mã HP) — Q13 (lý do khách quan/đặc biệt), Q19 (60 ngày không khai giảng), OVERVIEW §6.3.
- *
- * Cách vận hành:
- * - Chỉ ADMIN. Với `center_unable_within_60days`: `refund_amount` = tổng các phiếu thu **dương** đã thu (gồm phí giữ chỗ), không lấy thuần `tuition_fee` vì reserved có thể chỉ có receipt 500k (Q19).
- * - `subjective_*`: hoàn 0 + trạng thái completed ngay (ghi nhận quyết định không hoàn tiền — thống nhất Q13).
- * - `special_case`: bắt buộc số tiền + ghi chú duyệt; các nhánh khác theo `CreateRefundRequestSchema`.
+ * Tạo yêu cầu hoàn phí (mã HP) — Q13, Q19, TH1.
+ * Chỉ ADMIN. Lỗi trung tâm: pending HP, amount = tổng phiếu thu dương; drop khi Kế toán duyệt.
  */
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo } from '../../../domain/students/repositories/student.repo.port';
@@ -14,6 +10,9 @@ import { CreateRefundRequestSchema } from '../dtos/refund.dto';
 import { generateEimCode } from '../../../shared/utils/eim-code';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
+import { computePaidPositiveTotal } from '../../finance/helpers/center-refund-amount.helper';
+
+const CENTER_FAULT_REASONS = new Set(['center_unable_to_open', 'center_unable_within_60days']);
 
 export class CreateRefundRequestUseCase {
   constructor(
@@ -43,14 +42,12 @@ export class CreateRefundRequestUseCase {
     let finalAmount = 0;
     let finalStatus: 'pending' | 'completed' = 'pending';
 
-    if (input.reasonType === 'center_unable_within_60days') {
-      // Q19: hoàn toàn bộ tiền đã thu (phiếu dương), gồm phí giữ chỗ — không lấy thuần tuition_fee vì reserved có thể chỉ có receipt 500k.
-      const receipts = await this.receiptRepo.findByEnrollment(enrollment.id);
-      const paidPositive = receipts.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+    if (CENTER_FAULT_REASONS.has(input.reasonType)) {
+      const paidPositive = await computePaidPositiveTotal(this.receiptRepo, enrollment.id);
       if (paidPositive <= 0) {
         throw new AppError(
           ERROR_CODES.VALIDATION_ERROR,
-          'Không có phiếu thu dương nào — không thể tạo yêu cầu hoàn trung tâm không khai giảng (Q19)',
+          'Không có phiếu thu dương nào — không thể tạo yêu cầu hoàn trung tâm',
           422,
         );
       }
@@ -79,10 +76,10 @@ export class CreateRefundRequestUseCase {
       requestCode,
       enrollmentId: enrollment.id,
       reasonType: input.reasonType,
-      // Rule dễ đổi: muốn bắt review_note cho reason khác, sửa validate ở nhánh reason phía trên.
       reasonDetail: input.reasonDetail,
       refundAmount: finalAmount,
       status: finalStatus,
+      requestedBy: actor.id,
     });
 
     if (finalStatus === 'completed') {

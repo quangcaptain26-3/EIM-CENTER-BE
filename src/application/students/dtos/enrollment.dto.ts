@@ -114,6 +114,18 @@ export const TransferReservationSchema = TransferReservationBodySchema.extend({
   enrollmentId: z.string().uuid(),
 });
 
+export const AdjustPlacementBodySchema = z.object({
+  newClassId: z.string().min(1, 'Chọn lớp mới'),
+  note: z
+    .string()
+    .min(10, 'Ghi chú cần ít nhất 10 ký tự')
+    .optional(),
+});
+
+export const AdjustPlacementSchema = AdjustPlacementBodySchema.extend({
+  enrollmentId: z.string().uuid(),
+});
+
 const ResumeEnrollmentBodySchema = z
   .object({
     classId: PgUuidStringSchema.optional(),

@@ -80,6 +80,14 @@ export const ERROR_CODES = {
   /** Chuyển lớp: đã hết lượt chuyển */
   ENROLLMENT_TRANSFER_LIMIT:        'ENROLLMENT_TRANSFER_LIMIT',
   ENROLLMENT_PAUSE_LIMIT_REACHED:   'ENROLLMENT_PAUSE_LIMIT_REACHED',
+  /** Điều chỉnh cấp/lớp sau test: không đủ điều kiện */
+  ENROLLMENT_PLACEMENT_LOCKED:      'ENROLLMENT_PLACEMENT_LOCKED',
+  /** Chuyển nhượng HP: lớp đích khác chương trình */
+  ENROLLMENT_TRANSFER_PROGRAM_MISMATCH: 'ENROLLMENT_TRANSFER_PROGRAM_MISMATCH',
+  /** Chuyển nhượng HP: lớp đích đã học quá nhiều buổi so với HV nguồn */
+  ENROLLMENT_TRANSFER_CLASS_PROGRESS: 'ENROLLMENT_TRANSFER_CLASS_PROGRESS',
+  /** Chuyển nhượng HP: không đủ tiền đã thu */
+  ENROLLMENT_TRANSFER_INSUFFICIENT_PAID: 'ENROLLMENT_TRANSFER_INSUFFICIENT_PAID',
 } as const;
 
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];

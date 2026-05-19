@@ -109,6 +109,7 @@ import { RefundRequestPgRepo } from '../../infrastructure/db/repositories/studen
 import { CreateStudentUseCase } from '../../application/students/usecases/create-student.usecase';
 import { ListStudentsUseCase } from '../../application/students/usecases/list-students.usecase';
 import { GetStudentUseCase } from '../../application/students/usecases/get-student.usecase';
+import { ListStudentEnrollmentHistoryUseCase } from '../../application/students/usecases/list-student-enrollment-history.usecase';
 import { UpdateStudentUseCase } from '../../application/students/usecases/update-student.usecase';
 import { CreateEnrollmentUseCase } from '../../application/students/usecases/create-enrollment.usecase';
 import { ListEnrollmentsUseCase } from '../../application/students/usecases/list-enrollments.usecase';
@@ -124,7 +125,9 @@ import { GetPauseEligibilityUseCase } from '../../application/students/usecases/
 import { ResumeEnrollmentUseCase } from '../../application/students/usecases/resume-enrollment.usecase';
 import { GetResumeOptionsUseCase } from '../../application/students/usecases/get-resume-options.usecase';
 import { TransferClassUseCase } from '../../application/students/usecases/transfer-class.usecase';
+import { AdjustPlacementUseCase } from '../../application/students/usecases/adjust-placement.usecase';
 import { TransferEnrollmentUseCase } from '../../application/students/usecases/transfer-enrollment.usecase';
+import { GetTransferTuitionPreviewUseCase } from '../../application/students/usecases/get-transfer-tuition-preview.usecase';
 import { ReviewPauseRequestUseCase } from '../../application/students/usecases/review-pause-request.usecase';
 import { ResetMakeupBlockedUseCase } from '../../application/students/usecases/reset-makeup-blocked.usecase';
 import { UpgradeProgramUseCase } from '../../application/students/usecases/upgrade-program.usecase';
@@ -158,6 +161,7 @@ import {
   TransferClassBodySchema,
   TransferReservationBodySchema,
   TransferEnrollmentSchema,
+  AdjustPlacementBodySchema,
 } from '../../application/students/dtos/enrollment.dto';
 import {
   RecordAttendanceBodySchema,
@@ -349,6 +353,7 @@ const pauseRequestRepo = new PauseRequestPgRepo(db);
 const attendanceRepo = new AttendancePgRepo(db);
 const makeupSessionRepo = new MakeupSessionPgRepo(db);
 const refundRequestRepo = new RefundRequestPgRepo(db);
+const receiptRepo = new ReceiptPgRepo(db);
 
 // Students use cases
 const enrollmentTransitionRule = new EnrollmentTransitionRule();
@@ -361,6 +366,10 @@ const financeCheckServicePlaceholder = {
 const createStudentUsecase = new CreateStudentUseCase(studentRepo, auditLogRepo, db);
 const listStudentsUsecase = new ListStudentsUseCase(studentRepo);
 const getStudentUsecase = new GetStudentUseCase(studentRepo);
+const listStudentEnrollmentHistoryUsecase = new ListStudentEnrollmentHistoryUseCase(
+  studentRepo,
+  enrollmentHistoryRepo,
+);
 const updateStudentUsecase = new UpdateStudentUseCase(studentRepo, auditLogRepo, db);
 
 // CreateEnrollmentUseCase(studentRepo, enrollmentRepo, enrollmentHistoryRepo, classRepo, programRepo, auditLogRepo)
@@ -390,7 +399,8 @@ const dropEnrollmentUsecase = new DropEnrollmentUseCase(
   enrollmentTransitionRule,
   studentRepo,
   auditLogRepo,
-  db,
+  refundRequestRepo,
+  receiptRepo,
 );
 // CompleteEnrollmentUseCase(studentRepo, enrollmentRepo, enrollmentHistoryRepo, programRepo, auditLogRepo)
 const completeEnrollmentUsecase = new CompleteEnrollmentUseCase(
@@ -425,6 +435,7 @@ const resumeEnrollmentUsecase = new ResumeEnrollmentUseCase(
 );
 // TransferClassUseCase(enrollmentRepo, enrollmentHistoryRepo, classRepo, auditLogRepo)
 const transferClassUsecase = new TransferClassUseCase(enrollmentRepo, enrollmentHistoryRepo, classRepo, auditLogRepo);
+const adjustPlacementUsecase = new AdjustPlacementUseCase(db, classRepo, auditLogRepo);
 const cancelReservationUsecase = new CancelReservationUseCase(
   enrollmentRepo,
   enrollmentHistoryRepo,
@@ -493,7 +504,8 @@ const getClassAttendanceMatrixUsecase = new GetClassAttendanceMatrixUseCase(
 let reviewRefundRequestUsecase: ReviewRefundRequestUseCase;
 const listRefundRequestsUsecase = new ListRefundRequestsUseCase(refundRequestRepo);
 
-const transferEnrollmentUsecase = new TransferEnrollmentUseCase(db);
+const transferEnrollmentUsecase = new TransferEnrollmentUseCase(db, auditLogRepo);
+const getTransferTuitionPreviewUsecase = new GetTransferTuitionPreviewUseCase(db);
 const upgradeProgramUsecase = new UpgradeProgramUseCase(db);
 const expireReservedEnrollmentsUsecase = new ExpireReservedEnrollmentsUseCase(db);
 
@@ -512,7 +524,6 @@ const globalSearchUseCase = new GlobalSearchUseCase(searchRepo);
 const searchController = createSearchController(globalSearchUseCase, searchStudentsUseCase, searchUsersUseCase, searchClassesUseCase);
 
 // ─── Finance repos ────────────────────────────────────────────────────────────
-const receiptRepo = new ReceiptPgRepo(db);
 const payrollRepo = new PayrollPgRepo(db);
 
 const createRefundRequestUsecase = new CreateRefundRequestUseCase(
@@ -591,7 +602,13 @@ const sessionController = createSessionController(
 const roomController = createRoomController(listRoomsUsecase, listRoomAvailabilityUsecase);
 const programController = createProgramController(listProgramsUsecase, updateProgramDefaultFeeUsecase);
 
-const studentController = createStudentController(createStudentUsecase, listStudentsUsecase, getStudentUsecase, updateStudentUsecase);
+const studentController = createStudentController(
+  createStudentUsecase,
+  listStudentsUsecase,
+  getStudentUsecase,
+  updateStudentUsecase,
+  listStudentEnrollmentHistoryUsecase,
+);
 const enrollmentController = createEnrollmentController(
   createEnrollmentUsecase,
   startTrialUsecase,
@@ -604,12 +621,14 @@ const enrollmentController = createEnrollmentController(
   resumeEnrollmentUsecase,
   transferClassUsecase,
   transferEnrollmentUsecase,
+  getTransferTuitionPreviewUsecase,
   upgradeProgramUsecase,
   listEnrollmentsUsecase,
   resetMakeupBlockedUsecase,
   cancelReservationUsecase,
   reassignReservedClassUsecase,
   transferReservationUsecase,
+  adjustPlacementUsecase,
 );
 const pauseRequestController = createPauseRequestController(
   reviewPauseRequestUsecase,
@@ -918,12 +937,30 @@ studentRouter.get('/', authenticate, rbac('student:read'), studentController.lis
 studentRouter.post('/', authenticate, rbac('student:create'), validate(CreateStudentSchema), studentController.createStudent);
 studentRouter.get('/:id', authenticate, rbac('student:read'), studentController.getStudent);
 studentRouter.patch('/:id', authenticate, rbac('student:update'), validate(UpdateStudentSchema), studentController.updateStudent);
+studentRouter.get(
+  '/:id/enrollment-history',
+  authenticate,
+  rbac('enrollment:read'),
+  studentController.listEnrollmentHistory,
+);
 studentRouter.get('/:id/enrollments', authenticate, rbac('enrollment:read'), enrollmentController.listStudentEnrollments);
 
 // Enrollments (attendance history nested)
 const enrollmentRouter = Router();
 // NOTE: /transfer must be declared before /:id routes to avoid param collision
-enrollmentRouter.post('/transfer', authenticate, rbac('*'), validate(TransferEnrollmentSchema), enrollmentController.transferEnrollment);
+enrollmentRouter.post(
+  '/transfer',
+  authenticate,
+  rbac('enrollment:transfer_tuition', '*'),
+  validate(TransferEnrollmentSchema),
+  enrollmentController.transferEnrollment,
+);
+enrollmentRouter.get(
+  '/:id/transfer-tuition-preview',
+  authenticate,
+  rbac('enrollment:transfer_tuition', 'debt:read', '*'),
+  enrollmentController.getTransferTuitionPreview,
+);
 enrollmentRouter.post('/', authenticate, rbac('enrollment:create'), validate(CreateEnrollmentSchema), enrollmentController.createEnrollment);
 enrollmentRouter.post('/:id/start-trial', authenticate, rbac('enrollment:create'), enrollmentController.startTrial);
 enrollmentRouter.post('/:id/activate', authenticate, rbac('enrollment:create'), enrollmentController.activateEnrollment);
@@ -971,6 +1008,13 @@ enrollmentRouter.post(
   enrollmentController.resumeEnrollment,
 );
 enrollmentRouter.post('/:id/transfer-class', authenticate, rbac('enrollment:transfer_class'), validate(TransferClassBodySchema), enrollmentController.transferClass);
+enrollmentRouter.post(
+  '/:id/adjust-placement',
+  authenticate,
+  rbac('enrollment:create'),
+  validate(AdjustPlacementBodySchema),
+  enrollmentController.adjustPlacement,
+);
 enrollmentRouter.post('/:id/upgrade-program', authenticate, rbac('*'), enrollmentController.upgradeProgram);
 enrollmentRouter.post(
   '/:id/reset-makeup-blocked',
@@ -1015,8 +1059,8 @@ makeupSessionRouter.patch('/:id/complete', authenticate, rbac('makeup:create'), 
 const refundRequestRouter = Router();
 refundRequestRouter.post('/', authenticate, rbac('receipt:create', '*'), validate(CreateRefundRequestSchema), refundRequestController.createRefund);
 refundRequestRouter.get('/', authenticate, rbac('receipt:create', '*'), refundRequestController.listRefunds);
-refundRequestRouter.patch('/:id/approve', authenticate, rbac('receipt:create', '*'), refundRequestController.approveRefund);
-refundRequestRouter.patch('/:id/reject', authenticate, rbac('receipt:create', '*'), refundRequestController.rejectRefund);
+refundRequestRouter.patch('/:id/approve', authenticate, rbac('refund:approve'), refundRequestController.approveRefund);
+refundRequestRouter.patch('/:id/reject', authenticate, rbac('refund:approve'), refundRequestController.rejectRefund);
 
 // ─── Mount ────────────────────────────────────────────────────────────────────
 router.use('/auth', authRouter);

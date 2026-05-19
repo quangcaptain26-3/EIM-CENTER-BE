@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { UpdateStudentDto, UpdateStudentSchema } from '../dtos/student.dto';
 import { IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
 import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
 import { refreshSearchViews } from '../../../infrastructure/db/refresh-views';
@@ -15,21 +16,30 @@ export class UpdateStudentUseCase {
 
   async execute(
     id: string,
-    data: Partial<{
-      fullName: string;
-      phone: string;
-      parentPhone: string;
-      address: string;
-      dateOfBirth: string;
-    }>,
+    dto: UpdateStudentDto,
     actor: { id: string; role: string; ip?: string },
   ) {
+    const validData = UpdateStudentSchema.parse(dto);
+
     const existing = await this.studentRepo.findById(id);
     if (!existing) {
       throw new AppError(ERROR_CODES.STUDENT_NOT_FOUND, 'Không tìm thấy học viên', 404);
     }
 
-    const updated = await this.studentRepo.update(id, data as Record<string, unknown>);
+    const patch: Record<string, unknown> = {};
+    if (validData.fullName !== undefined) patch.fullName = validData.fullName;
+    if (validData.dob !== undefined) patch.dob = validData.dob ? new Date(validData.dob) : null;
+    if (validData.gender !== undefined) patch.gender = validData.gender;
+    if (validData.address !== undefined) patch.address = validData.address;
+    if (validData.schoolName !== undefined) patch.schoolName = validData.schoolName;
+    if (validData.parentName !== undefined) patch.parentName = validData.parentName;
+    if (validData.parentPhone !== undefined) patch.parentPhone = validData.parentPhone;
+    if (validData.parentPhone2 !== undefined) patch.parentPhone2 = validData.parentPhone2;
+    if (validData.parentZalo !== undefined) patch.parentZalo = validData.parentZalo;
+    if (validData.testResult !== undefined) patch.testResult = validData.testResult;
+    if (validData.currentLevel !== undefined) patch.currentLevel = validData.currentLevel;
+
+    const updated = await this.studentRepo.update(id, patch);
 
     await this.auditLogRepo.log({
       action: 'STUDENT:updated',
@@ -38,6 +48,7 @@ export class UpdateStudentUseCase {
       actorIp: actor.ip,
       entityType: 'student',
       entityId: id,
+      newValues: validData,
       description: `Cập nhật thông tin học viên ${existing.studentCode}`,
     });
 

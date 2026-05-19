@@ -5,27 +5,31 @@ import { generateEimCode } from '../../../shared/utils/eim-code';
 import { amountToWordsVi } from '../../../shared/utils/amount-to-words';
 import { AppError } from '../../../shared/errors/app-error';
 import { ERROR_CODES } from '../../../shared/errors/error-codes';
+import { IAuditLogRepo } from '../../../domain/auth/repositories/audit-log.repo.port';
+import {
+  assertSameProgram,
+  assertTargetClassBehindStudent,
+  computeTransferAmount,
+  getClassCompletedSessions,
+} from '../helpers/transfer-enrollment.helpers';
 
 type Actor = { id: string; role: string; ip?: string };
 
 /**
  * POST /enrollments/transfer — chuyển nhượng học phí (Q20, Q26).
- *
- * Cách vận hành (một transaction, rollback nếu lỗi):
- * - Enrollment nguồn phải `active`; `from_student_id !== to_student_id` (không chuyển cho chính mình — Q26).
- * - HV nhận không được có enrollment trial/active/paused song song; lớp đích còn slot.
- * - `sessions_remaining = 24 - sessions_attended`; `amount_transferred = floor(tuition_fee × sessions_remaining / 24)` (đồng nhất Q20).
- * - Thứ tự: INSERT phiếu âm enrollment A → INSERT enrollment mới cho B (`tuition_fee = amount_transferred`, `active`)
- *   → INSERT phiếu dương cho B → UPDATE A `transferred` → history + `transfer_requests`.
+ * Role: ADMIN, ACCOUNTANT. Transaction nguyên tử.
  */
 export class TransferEnrollmentUseCase {
-  constructor(private readonly db: Pool) {}
+  constructor(
+    private readonly db: Pool,
+    private readonly auditLogRepo: IAuditLogRepo,
+  ) {}
 
   async execute(body: unknown, actor: Actor) {
-    if (!['ADMIN', 'ACADEMIC'].includes(actor.role)) {
+    if (!['ADMIN', 'ACCOUNTANT'].includes(actor.role)) {
       throw new AppError(
         ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
-        'Chỉ ADMIN hoặc ACADEMIC mới thực hiện chuyển nhượng học phí',
+        'Chỉ ADMIN hoặc Kế toán mới thực hiện chuyển nhượng học phí',
         403,
       );
     }
@@ -87,6 +91,12 @@ export class TransferEnrollmentUseCase {
         throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Lớp đích không ở trạng thái nhận học viên', 422);
       }
 
+      const toProgramId = String(toClass.program_id);
+      assertSameProgram(fromProgramId, toProgramId);
+
+      const classCompleted = await getClassCompletedSessions(client, toClassId);
+      assertTargetClassBehindStudent(classCompleted, sessionsAttended);
+
       const activeOther = await client.query(
         `SELECT id FROM enrollments WHERE student_id = $1 AND status IN ('trial','active','paused') LIMIT 1`,
         [toStudentId],
@@ -108,20 +118,39 @@ export class TransferEnrollmentUseCase {
         throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Lớp đích đã đủ sĩ số', 422);
       }
 
-      const sessionsRemaining = 24 - sessionsAttended;
+      const receiptsRes = await client.query(
+        `SELECT amount::numeric AS amount FROM receipts WHERE enrollment_id = $1`,
+        [fromEnrollmentId],
+      );
+      const receipts = receiptsRes.rows.map((r: { amount: string | number }) => ({
+        amount: Number(r.amount),
+      }));
+
+      const { sessionsRemaining, remainingTuitionValue, netPaid, amountTransferred } = computeTransferAmount(
+        tuitionFee,
+        sessionsAttended,
+        receipts,
+      );
+
       if (sessionsRemaining <= 0) {
         throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Không còn buổi học để chuyển nhượng', 422);
       }
 
-      const amountTransferred = Math.floor((tuitionFee * sessionsRemaining) / 24);
       if (amountTransferred <= 0) {
-        throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Số tiền chuyển nhượng không hợp lệ', 422);
+        throw new AppError(
+          ERROR_CODES.ENROLLMENT_TRANSFER_INSUFFICIENT_PAID,
+          'Không đủ số tiền đã thu để chuyển nhượng',
+          422,
+        );
       }
+
+      const transferNote =
+        remainingTuitionValue > netPaid
+          ? `Chuyển một phần theo tiền đã thu (${amountTransferred}/${remainingTuitionValue})`
+          : null;
 
       const transferGroupId = randomUUID();
       const newEnrollmentId = randomUUID();
-
-      const toProgramId = String(toClass.program_id);
 
       const debitReceiptCode = generateEimCode('PT');
       const debitReceipt = await client.query(
@@ -176,6 +205,10 @@ export class TransferEnrollmentUseCase {
         fromEnrollmentId,
       ]);
 
+      const historyNote = transferNote
+        ? `Chuyển nhượng học phí sang học viên ${toStudent.full_name}. ${transferNote}`
+        : `Chuyển nhượng học phí sang học viên ${toStudent.full_name}`;
+
       await client.query(
         `INSERT INTO enrollment_history (
            enrollment_id, action, from_status, to_status,
@@ -190,7 +223,7 @@ export class TransferEnrollmentUseCase {
           toProgramId,
           sessionsAttended,
           actor.id,
-          `Chuyển nhượng học phí sang học viên ${toStudent.full_name}`,
+          historyNote,
         ],
       );
 
@@ -232,11 +265,23 @@ export class TransferEnrollmentUseCase {
 
       await client.query('COMMIT');
 
+      await this.auditLogRepo.log({
+        action: 'ENROLLMENT:tuition_transferred',
+        actorId: actor.id,
+        actorRole: actor.role,
+        actorIp: actor.ip,
+        entityType: 'enrollment',
+        entityId: fromEnrollmentId,
+        description: `Chuyển nhượng ${amountTransferred.toLocaleString('vi-VN')}đ (${sessionsRemaining} buổi) từ HV ${fromStudent.full_name} sang ${toStudent.full_name}, enrollment mới ${newEnrollmentId}`,
+      });
+
       return {
         success: true,
         transferGroupId,
         amountTransferred,
         sessionsRemaining,
+        remainingTuitionValue,
+        netPaid,
         newEnrollmentId,
         debitReceiptId,
         creditReceiptId,

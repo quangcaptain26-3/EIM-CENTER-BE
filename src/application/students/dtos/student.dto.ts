@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const ProgramLevelCodeSchema = z.enum(['KINDY', 'STARTERS', 'MOVERS', 'FLYERS']);
+
 export const CreateStudentSchema = z.object({
   fullName: z.string().min(1, 'Họ tên không được để trống'),
   dob: z.string().optional(), // Or z.date() if parsed
@@ -11,7 +13,9 @@ export const CreateStudentSchema = z.object({
   parentPhone: z.string().optional(),
   parentPhone2: z.string().optional(),
   parentZalo: z.string().optional(),
-  testResult: z.string().optional()
+  testResult: z.string().optional(),
+  /** Cấp độ đề xuất sau test — khớp students.current_level → programs.code */
+  currentLevel: ProgramLevelCodeSchema.optional(),
 });
 
 export type CreateStudentDto = z.infer<typeof CreateStudentSchema>;

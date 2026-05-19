@@ -37,6 +37,15 @@ export class ActivateEnrollmentUseCase {
       throw new AppError(ERROR_CODES.ENROLLMENT_NOT_FOUND, 'Không tìm thấy ghi danh', 404);
     }
 
+    const student = await this.studentRepo.findById(enrollment.studentId);
+    if (!student?.testResult?.trim()) {
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        'Cần ghi kết quả test đầu vào trên hồ sơ học viên trước khi kích hoạt',
+        422,
+      );
+    }
+
     if (!['reserved', 'pending', 'trial'].includes(enrollment.status)) {
       throw new AppError(
         ERROR_CODES.TRANSITION_BLOCKED,
@@ -95,8 +104,7 @@ export class ActivateEnrollmentUseCase {
       changedBy: actor.id,
     });
 
-    const student = await this.studentRepo.findById(enrollment.studentId);
-    const entityCode = student?.studentCode ?? enrollment.id;
+    const entityCode = student.studentCode ?? enrollment.id;
     await logEnrollmentStatusAudit(this.auditLogRepo, {
       action: 'ENROLLMENT:activated',
       enrollmentId,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const CreateRefundRequestSchema = z.object({
   enrollmentId: z.string().uuid(),
   reasonType: z.enum([
+    'center_unable_to_open',
     'center_unable_within_60days',
     'subjective_no_interest',
     'subjective_schedule_conflict',
@@ -20,4 +21,5 @@ export const ReviewRefundRequestSchema = z.object({
   requestId: z.string().uuid(),
   status: z.enum(['approved', 'rejected']),
   reviewNote: z.string().optional(),
+  approvedAmount: z.number().min(0).optional(),
 });

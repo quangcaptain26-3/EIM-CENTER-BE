@@ -82,9 +82,33 @@ export interface HistoryEntry {
   actionDate?: Date;
 }
 
+export interface StudentEnrollmentHistoryRow {
+  id: string;
+  enrollmentId: string;
+  action: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  fromClassId?: string | null;
+  toClassId?: string | null;
+  fromProgramId?: string | null;
+  toProgramId?: string | null;
+  fromProgramCode?: string | null;
+  fromProgramName?: string | null;
+  toProgramCode?: string | null;
+  toProgramName?: string | null;
+  fromClassCode?: string | null;
+  toClassCode?: string | null;
+  sessionsAtAction?: number | null;
+  changedBy?: string | null;
+  changedByName?: string | null;
+  note?: string | null;
+  actionDate?: Date;
+}
+
 export interface IEnrollmentHistoryRepo {
   create(data: Partial<HistoryEntry>): Promise<void>;
   findByEnrollment(enrollmentId: string): Promise<HistoryEntry[]>;
+  findByStudentId(studentId: string): Promise<StudentEnrollmentHistoryRow[]>;
 }
 
 export interface PauseRequestEntity {

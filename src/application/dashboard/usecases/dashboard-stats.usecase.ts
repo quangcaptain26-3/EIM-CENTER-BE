@@ -141,6 +141,15 @@ export interface DashboardStatsResult {
   /** TEACHER */
   teacher?: TeacherDashboardSlice;
   warnings?: DashboardWarningCard[];
+
+  /** ADMIN — TH2: dropout chủ quan 90 ngày */
+  dropoutReasonBreakdown?: DropoutReasonSlice[];
+}
+
+export interface DropoutReasonSlice {
+  reasonType: string;
+  label: string;
+  count: number;
 }
 
 const PROGRAM_COLORS: Record<string, string> = {
@@ -204,13 +213,14 @@ export class DashboardStatsUseCase {
 
   private async forAdmin(role: string): Promise<DashboardStatsResult> {
     const core = await this.fetchCoreMetrics();
-    const [chart, byProg, today, activities, extras, warnings] = await Promise.all([
+    const [chart, byProg, today, activities, extras, warnings, dropoutReasonBreakdown] = await Promise.all([
       this.revenueChart6m(),
       this.enrollmentsByProgram(),
       this.todaySessions(),
       this.recentActivities(10),
       this.fetchAccountantExtras(),
       this.fetchScheduledWarnings(),
+      this.fetchDropoutReasonBreakdown(),
     ]);
 
     return {
@@ -226,7 +236,36 @@ export class DashboardStatsUseCase {
       cashThisMonth: extras.cashThisMonth,
       accrualThisMonth: extras.accrualThisMonth,
       warnings,
+      dropoutReasonBreakdown,
     };
+  }
+
+  private static readonly SUBJECTIVE_DROP_LABELS: Record<string, string> = {
+    subjective_no_interest: 'Không còn hứng thú học',
+    subjective_schedule_conflict: 'Bận lịch cá nhân',
+    subjective_financial: 'Khó khăn tài chính',
+    subjective_relocation: 'Chuyển nơi ở',
+    subjective_class_transfer: 'Chuyển sang lớp khác',
+    subjective_other: 'Lý do cá nhân khác',
+  };
+
+  private async fetchDropoutReasonBreakdown(): Promise<DropoutReasonSlice[]> {
+    const res = await this.db.query(
+      `SELECT
+         trim(split_part(note, ':', 1)) AS reason_type,
+         COUNT(*)::int AS cnt
+       FROM enrollment_history
+       WHERE action = 'dropped'
+         AND note ~ '^subjective_[^:]+:'
+         AND action_date >= (CURRENT_DATE - INTERVAL '90 days')
+       GROUP BY 1
+       ORDER BY cnt DESC`,
+    );
+    return (res.rows as { reason_type: string; cnt: number }[]).map((row) => ({
+      reasonType: row.reason_type,
+      label: DashboardStatsUseCase.SUBJECTIVE_DROP_LABELS[row.reason_type] ?? row.reason_type,
+      count: Number(row.cnt) || 0,
+    }));
   }
 
   private async forAccountant(_userId: string, role: string): Promise<DashboardStatsResult> {
@@ -985,7 +1024,7 @@ export class DashboardStatsUseCase {
       warnings.push({
         code: 'PENDING_WITH_RECEIPT_OVER_60_DAYS',
         title: 'Lớp pending quá 60 ngày (Q19)',
-        message: `${pendingRefundCount} lớp pending quá 60 ngày đã có học viên đóng tiền. Admin tạo refund_request (center_unable_within_60days) — số hoàn = tổng phiếu thu dương đã thu; duyệt xong kế toán tạo phiếu âm (gồm phí giữ chỗ nếu đã thu).`,
+        message: `${pendingRefundCount} lớp pending quá 60 ngày đã có học viên đóng tiền. Admin tạo yêu cầu hoàn phí (center_unable_within_60days); Kế toán xác nhận và lập phiếu âm (số hoàn = tổng phiếu thu dương, gồm phí giữ chỗ).`,
         count: pendingRefundCount,
       });
     }

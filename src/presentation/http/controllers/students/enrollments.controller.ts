@@ -13,12 +13,14 @@ export function createEnrollmentController(
   resumeEnrollmentUsecase: any,
   transferClassUsecase: any,
   transferEnrollmentUsecase: any,
+  getTransferTuitionPreviewUsecase: any,
   upgradeProgramUsecase: any,
   listEnrollmentsUsecase: any,
   resetMakeupBlockedUsecase: any,
   cancelReservationUsecase: any,
   reassignReservedClassUsecase: any,
   transferReservationUsecase: any,
+  adjustPlacementUsecase: any,
 ) {
   /** Helper: build actor from request */
   const actor = (req: Request) => ({
@@ -164,6 +166,16 @@ export function createEnrollmentController(
       }
     },
 
+    /** GET /enrollments/:id/transfer-tuition-preview */
+    getTransferTuitionPreview: async (req: Request, res: Response) => {
+      try {
+        const result = await getTransferTuitionPreviewUsecase.execute(req.params.id, req.query);
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
     /** POST /enrollments/:id/upgrade-program */
     upgradeProgram: async (req: Request, res: Response) => {
       try {
@@ -217,6 +229,19 @@ export function createEnrollmentController(
     transferReservation: async (req: Request, res: Response) => {
       try {
         const result = await transferReservationUsecase.execute(
+          { enrollmentId: req.params.id, ...req.body },
+          actor(req),
+        );
+        res.status(200).json(result);
+      } catch (error: unknown) {
+        sendErrorResponse(res, error);
+      }
+    },
+
+    /** POST /enrollments/:id/adjust-placement — điều chỉnh cấp/lớp sau test */
+    adjustPlacement: async (req: Request, res: Response) => {
+      try {
+        const result = await adjustPlacementUsecase.execute(
           { enrollmentId: req.params.id, ...req.body },
           actor(req),
         );

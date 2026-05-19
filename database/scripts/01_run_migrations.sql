@@ -36,3 +36,6 @@ SET client_encoding TO 'UTF8';
 \i 'database/migrations/27_classes_max_capacity_12.sql'
 \i 'database/migrations/28_reservation_fee_ratio.sql'
 \i 'database/migrations/29_fix_staff_payroll_preview_ambiguous.sql'
+\i 'database/migrations/30_export_jobs.sql'
+\i 'database/migrations/31_notifications.sql'
+\i 'database/migrations/32_refund_center_reason_restore.sql'

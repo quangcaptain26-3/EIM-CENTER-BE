@@ -13,6 +13,7 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
       row.reason_detail,
       parseFloat(row.refund_amount) || 0,
       row.status as RefundRequestStatus,
+      row.requested_by ?? undefined,
       row.reviewed_by ?? undefined,
       row.review_note ?? undefined,
       row.created_at,
@@ -91,11 +92,13 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
     };
   }
 
-  async create(data: Partial<RefundRequestEntity>): Promise<RefundRequestEntity> {
+  async create(
+    data: Partial<RefundRequestEntity> & { requestedBy: string },
+  ): Promise<RefundRequestEntity> {
     const res = await this.db.query(
       `INSERT INTO refund_requests
-         (request_code, enrollment_id, reason_type, reason_detail, refund_amount, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (request_code, enrollment_id, reason_type, reason_detail, refund_amount, status, requested_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         data.requestCode,
@@ -104,6 +107,7 @@ export class RefundRequestPgRepo implements IRefundRequestRepo {
         data.reasonDetail,
         data.refundAmount ?? 0,
         data.status ?? 'pending',
+        data.requestedBy,
       ],
     );
     return this.mapToEntity(res.rows[0]);

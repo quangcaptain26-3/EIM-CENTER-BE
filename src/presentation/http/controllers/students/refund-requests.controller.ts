@@ -52,6 +52,8 @@ export function createRefundRequestController(
             requestId: req.params.id,
             status: 'approved',
             reviewNote: req.body.reviewNote ?? '',
+            approvedAmount:
+              req.body.approvedAmount != null ? Number(req.body.approvedAmount) : undefined,
           },
           actor(req),
         );

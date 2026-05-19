@@ -1,10 +1,5 @@
 /**
- * Admin duyệt / từ chối yêu cầu hoàn phí — bước sau `CreateRefundRequestUseCase` (Q19, Q13).
- *
- * Cách vận hành:
- * - Chỉ ADMIN; từ chối bắt buộc `review_note`.
- * - Duyệt: tạo phiếu thu **âm** gắn enrollment; enrollment → dropped nếu cần; **cuối cùng** mới đổi status request (tránh DB approved mà UI/API lỗi giữa chừng).
- * - Từ chối: chỉ audit + đổi status.
+ * Kế toán duyệt / từ chối yêu cầu hoàn phí — TH1: ACCOUNTANT xác nhận & lập phiếu âm.
  */
 import { IRefundRequestRepo } from '../../../domain/students/repositories/attendance.repo.port';
 import { IEnrollmentRepo, IEnrollmentHistoryRepo, IStudentRepo } from '../../../domain/students/repositories/student.repo.port';
@@ -30,15 +25,15 @@ export class ReviewRefundRequestUseCase {
     dto: unknown,
     actor: { id: string; role: string; userCode?: string; ip?: string },
   ) {
-    if (actor.role !== 'ADMIN') {
+    if (actor.role !== 'ACCOUNTANT') {
       throw new AppError(
         ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
-        'Chỉ có ADMIN mới có quyền duyệt yêu cầu hoàn phí',
+        'Chỉ Kế toán mới có quyền xác nhận yêu cầu hoàn phí',
         403,
       );
     }
 
-    const { requestId, status, reviewNote } = ReviewRefundRequestSchema.parse(dto);
+    const { requestId, status, reviewNote, approvedAmount } = ReviewRefundRequestSchema.parse(dto);
     if (status === 'rejected' && !reviewNote?.trim()) {
       throw new AppError(
         ERROR_CODES.VALIDATION_ERROR,
@@ -63,9 +58,19 @@ export class ReviewRefundRequestUseCase {
     let receiptId: string | undefined;
 
     if (status === 'approved') {
-      const refundAmount = Number(request.refundAmount ?? 0);
+      const suggested = Number(request.refundAmount ?? 0);
+      const refundAmount =
+        approvedAmount !== undefined && approvedAmount > 0 ? approvedAmount : suggested;
+
       if (refundAmount <= 0) {
         throw new AppError(ERROR_CODES.VALIDATION_ERROR, 'Số tiền hoàn phí không hợp lệ', 422);
+      }
+      if (refundAmount > suggested) {
+        throw new AppError(
+          ERROR_CODES.VALIDATION_ERROR,
+          `Số tiền hoàn không được vượt quá số đề xuất (${suggested})`,
+          422,
+        );
       }
 
       const enrollment = await this.enrollmentRepo.findById(request.enrollmentId);
@@ -88,11 +93,16 @@ export class ReviewRefundRequestUseCase {
         amountInWords: amountToWordsVi(-refundAmount),
         paymentMethod: 'bank_transfer',
         paymentDate: new Date(),
-        note: reviewNote?.trim() || `Auto refund receipt for ${request.requestCode}`,
+        note: reviewNote?.trim() || `Phiếu hoàn cho ${request.requestCode}`,
         createdBy: actor.id,
         payerSignatureName: student.parentName || student.fullName,
       });
       receiptId = refundReceipt.id;
+
+      const isCenterFault =
+        request.reasonType === 'center_unable_to_open' ||
+        request.reasonType === 'center_unable_within_60days';
+      const historyAction = isCenterFault ? 'refunded_full' : 'dropped';
 
       if (enrollment.status !== 'dropped') {
         const fromStatus = enrollment.status;
@@ -100,10 +110,19 @@ export class ReviewRefundRequestUseCase {
 
         await this.enrollmentHistoryRepo.create({
           enrollmentId: enrollment.id,
-          action: 'dropped',
+          action: historyAction,
           fromStatus,
           toStatus: 'dropped',
-          note: `Approved refund drop: ${reviewNote}`,
+          note: `Approved refund (${request.reasonType}): ${reviewNote ?? ''}`.trim(),
+          changedBy: actor.id,
+        });
+      } else if (isCenterFault) {
+        await this.enrollmentHistoryRepo.create({
+          enrollmentId: enrollment.id,
+          action: 'refunded_full',
+          fromStatus: 'dropped',
+          toStatus: 'dropped',
+          note: `Hoàn phí sau khi đã dropped: ${request.requestCode}`,
           changedBy: actor.id,
         });
       }
@@ -118,8 +137,8 @@ export class ReviewRefundRequestUseCase {
         entityId: requestId,
         entityCode: request.requestCode,
         oldValues: { status: 'pending' },
-        newValues: { status: 'approved' },
-        description: `Duyệt yêu cầu hoàn phí ${request.requestCode}. Đã tạo phiếu hoàn ${refundReceipt.receiptCode}.`,
+        newValues: { status: 'approved', refundAmount },
+        description: `Kế toán xác nhận hoàn phí ${request.requestCode}. Đã tạo phiếu ${refundReceipt.receiptCode}.`,
       });
     } else {
       await this.auditLogRepo.log({

@@ -9,6 +9,7 @@ export class RefundRequestEntity {
     public reasonDetail: string,
     public refundAmount: number,
     public status: RefundRequestStatus,
+    public requestedBy?: string,
     public reviewedBy?: string,
     public reviewNote?: string,
     public readonly createdAt?: Date,

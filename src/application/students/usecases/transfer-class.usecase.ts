@@ -23,6 +23,14 @@ export class TransferClassUseCase {
   ) {}
 
   async execute(dto: unknown, actor: { id: string; role: string; ip?: string }) {
+    if (!['ADMIN', 'ACADEMIC'].includes(actor.role)) {
+      throw new AppError(
+        ERROR_CODES.AUTH_INSUFFICIENT_PERMISSION,
+        'Chỉ ADMIN hoặc Học vụ mới thực hiện chuyển lớp',
+        403,
+      );
+    }
+
     const { enrollmentId, newClassId: newClassRef } = TransferClassSchema.parse(dto);
     const newClassId = await resolveClassRefToId(this.classRepo, newClassRef);
 
